@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-const ARTISTS = [
+// ─── Seed list (always present, never removed) ───────────────────────────────
+const SEED_ARTISTS = [
   { name: "Shovkat Mirzayev", country: "Uzbekistan", flag: "🇺🇿", genre: "Shashmaqam / Classical Central Asian", youtubeId: "cq6pNzmNjrA", youtubeSearch: "Shovkat Mirzayev Uzbek music" },
   { name: "Tinariwen", country: "Mali / Sahara", flag: "🇲🇱", genre: "Tuareg Desert Blues", youtubeId: "5LkMtmVBDlg", youtubeSearch: "Tinariwen Amassakoul" },
   { name: "Huun-Huur-Tu", country: "Tuva, Russia", flag: "🇷🇺", genre: "Tuvan Throat Singing", youtubeId: "R2ovoRyv4mo", youtubeSearch: "Huun Huur Tu throat singing" },
@@ -46,50 +47,125 @@ const ARTISTS = [
   { name: "Ensemble Al-Kindī", country: "Syria", flag: "🇸🇾", genre: "Sufi Sama / Classical Arab", youtubeId: "phlL8BtGHNo", youtubeSearch: "Ensemble Al-Kindi Syrian Sufi" },
 ];
 
-function getDailyArtist() {
+const STORAGE_KEY = "twp_artists_v1";
+const EXPAND_THRESHOLD = 150;
+const EXPAND_BATCH = 25;
+
+// ─── Persistence helpers ──────────────────────────────────────────────────────
+function loadStoredArtists() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveStoredArtists(artists) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(artists)); } catch {}
+}
+
+function getAllArtists() {
+  const stored = loadStoredArtists();
+  const seedNames = new Set(SEED_ARTISTS.map((a) => a.name.toLowerCase()));
+  const extraStored = stored.filter((a) => !seedNames.has(a.name.toLowerCase()));
+  return [...SEED_ARTISTS, ...extraStored];
+}
+
+// ─── Daily artist (deterministic by date) ────────────────────────────────────
+function getDailyArtist(artists) {
   const now = new Date();
   const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-  return ARTISTS[seed % ARTISTS.length];
+  return artists[seed % artists.length];
 }
 
 function formatDate() {
   return new Date().toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric"
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 }
 
+// ─── API calls ────────────────────────────────────────────────────────────────
 async function fetchArtistStory(artist) {
-  const res = await fetch("/api/story", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: artist.name, country: artist.country, genre: artist.genre }),
-  });
-  const data = await res.json();
-  return data.story || "Story unavailable.";
+  try {
+    const res = await fetch("/api/story", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: artist.name, country: artist.country, genre: artist.genre }),
+    });
+    const data = await res.json();
+    return data.story || "Story unavailable.";
+  } catch { return "Story unavailable."; }
 }
 
+async function expandArtistList(existingNames) {
+  try {
+    const res = await fetch("/api/expand", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ existingNames, count: EXPAND_BATCH }),
+    });
+    const data = await res.json();
+    return data.artists || [];
+  } catch { return []; }
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function App() {
-  const artist = getDailyArtist();
+  const [allArtists, setAllArtists] = useState(() => getAllArtists());
+  const [artist, setArtist] = useState(() => getDailyArtist(getAllArtists()));
   const [story, setStory] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loadingStory, setLoadingStory] = useState(true);
   const [revealed, setRevealed] = useState(false);
+  const [expanding, setExpanding] = useState(false);
+  const [newlyAdded, setNewlyAdded] = useState(0);
+  const expandingRef = useRef(false);
+
+  useEffect(() => { setTimeout(() => setRevealed(true), 100); }, []);
 
   useEffect(() => {
-    setTimeout(() => setRevealed(true), 100);
+    setLoadingStory(true);
     fetchArtistStory(artist).then((s) => {
       setStory(s);
-      setLoading(false);
+      setLoadingStory(false);
     });
+  }, [artist.name]);
+
+  // Background expansion on load
+  useEffect(() => {
+    const current = getAllArtists();
+    if (current.length < EXPAND_THRESHOLD && !expandingRef.current) {
+      expandingRef.current = true;
+      setExpanding(true);
+      expandArtistList(current.map((a) => a.name)).then((newOnes) => {
+        if (newOnes.length > 0) {
+          const stored = loadStoredArtists();
+          const existingNames = new Set(stored.map((a) => a.name.toLowerCase()));
+          const seedNames = new Set(SEED_ARTISTS.map((a) => a.name.toLowerCase()));
+          const toAdd = newOnes.filter(
+            (a) => a.name && !existingNames.has(a.name.toLowerCase()) && !seedNames.has(a.name.toLowerCase())
+          );
+          if (toAdd.length > 0) {
+            const updated = [...stored, ...toAdd];
+            saveStoredArtists(updated);
+            const newFull = getAllArtists();
+            setAllArtists(newFull);
+            setNewlyAdded(toAdd.length);
+            setTimeout(() => setNewlyAdded(0), 5000);
+          }
+        }
+        setExpanding(false);
+        expandingRef.current = false;
+      });
+    }
   }, []);
+
+  const listSize = allArtists.length;
+  const countries = [...new Set(allArtists.map((a) => a.country))].length;
 
   return (
     <div style={{
-      minHeight: "100vh",
-      background: "#0a0805",
+      minHeight: "100vh", background: "#0a0805",
       fontFamily: "'Georgia', 'Times New Roman', serif",
-      color: "#e8dcc8",
-      position: "relative",
-      overflow: "hidden",
+      color: "#e8dcc8", position: "relative", overflow: "hidden",
     }}>
       {/* Grain overlay */}
       <div style={{
@@ -97,7 +173,6 @@ export default function App() {
         backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")`,
         opacity: 0.4,
       }} />
-      {/* Radial glow */}
       <div style={{
         position: "fixed", top: "20%", left: "50%", transform: "translateX(-50%)",
         width: "600px", height: "600px",
@@ -120,14 +195,12 @@ export default function App() {
             fontSize: "clamp(36px, 7vw, 64px)", fontWeight: "normal", letterSpacing: "-1px",
             margin: 0, lineHeight: 1, color: "#f0e4c8",
             fontFamily: "'Palatino Linotype', 'Palatino', 'Book Antiqua', Georgia, serif",
-          }}>
-            The World Plays
-          </h1>
+          }}>The World Plays</h1>
           <div style={{ width: "60px", height: "1px", background: "linear-gradient(to right, transparent, #c49a3c, transparent)", margin: "20px auto" }} />
           <p style={{ fontSize: "13px", color: "#8a7a60", margin: 0, letterSpacing: "1px" }}>{formatDate()}</p>
         </header>
 
-        {/* Artist card */}
+        {/* Artist Card */}
         <div style={{
           opacity: revealed ? 1 : 0, transform: revealed ? "translateY(0)" : "translateY(30px)",
           transition: "all 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s",
@@ -142,11 +215,9 @@ export default function App() {
             textAlign: "center", fontSize: "clamp(28px, 6vw, 52px)", fontWeight: "normal",
             fontFamily: "'Palatino Linotype', 'Palatino', Georgia, serif",
             margin: "0 0 40px", color: "#f5ead0", lineHeight: 1.1,
-          }}>
-            {artist.name}
-          </h2>
+          }}>{artist.name}</h2>
 
-          {/* YouTube embed */}
+          {/* YouTube */}
           <div style={{
             position: "relative", marginBottom: "48px", borderRadius: "2px", overflow: "hidden",
             boxShadow: "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(196,154,60,0.2)",
@@ -185,7 +256,7 @@ export default function App() {
           {/* Story */}
           <div style={{ position: "relative" }}>
             <div style={{ position: "absolute", top: 0, left: "-24px", width: "2px", height: "100%", background: "linear-gradient(to bottom, rgba(196,154,60,0.4), transparent)" }} />
-            {loading ? (
+            {loadingStory ? (
               <div style={{ padding: "32px 0", textAlign: "center" }}>
                 <div style={{
                   display: "inline-block", width: "40px", height: "40px",
@@ -206,9 +277,7 @@ export default function App() {
                       float: "left", fontSize: "clamp(48px, 8vw, 72px)", lineHeight: 0.8,
                       marginRight: "8px", marginTop: "8px", color: "#c49a3c",
                       fontFamily: "'Palatino Linotype', Georgia, serif",
-                    }}>
-                      {para[0]}
-                    </span>
+                    }}>{para[0]}</span>
                   )}
                   {i === 0 ? para.slice(1) : para}
                 </p>
@@ -234,18 +303,26 @@ export default function App() {
           </div>
         </div>
 
+        {/* Footer */}
         <footer style={{ textAlign: "center", marginTop: "80px", paddingTop: "32px", borderTop: "1px solid rgba(196,154,60,0.1)" }}>
           <p style={{ fontSize: "11px", color: "#4a3e2c", letterSpacing: "2px", margin: 0 }}>
             A NEW ARTIST FROM SOMEWHERE UNEXPECTED — EVERY DAY
           </p>
           <p style={{ fontSize: "10px", color: "#3a2e1c", margin: "8px 0 0", letterSpacing: "1px" }}>
-            {ARTISTS.length} artists · {ARTISTS.map(a => a.country).filter((v, i, arr) => arr.indexOf(v) === i).length} countries · 1 per day
+            {listSize} artists · {countries} countries · 1 per day
+            {expanding && <span style={{ color: "#6a5a40", marginLeft: "10px" }}>· ✦ discovering more…</span>}
           </p>
+          {newlyAdded > 0 && (
+            <p style={{ fontSize: "10px", color: "#c49a3c", margin: "6px 0 0", letterSpacing: "1px", animation: "fadeIn 0.5s ease" }}>
+              ✦ {newlyAdded} new artists just added to the rotation
+            </p>
+          )}
         </footer>
       </div>
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         * { box-sizing: border-box; }
         ::selection { background: rgba(196,154,60,0.3); }
         body { margin: 0; }
