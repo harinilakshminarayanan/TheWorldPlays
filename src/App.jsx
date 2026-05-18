@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { dedupeArtists, isValidYoutubeId } from "../shared/artist.js";
 
 const SEED_ARTISTS = [
   { name: "Shovkat Mirzayev", country: "Uzbekistan", flag: "🇺🇿", genre: "Shashmaqam / Classical Central Asian", youtubeId: "cq6pNzmNjrA", youtubeSearch: "Shovkat Mirzayev Uzbek music" },
@@ -49,7 +50,6 @@ const SEED_ARTISTS = [
 const STORAGE_KEY = "twp_artists_v1";
 const EXPAND_THRESHOLD = 150;
 const EXPAND_BATCH = 25;
-const YOUTUBE_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
 
 const palette = {
   deepBlue: "#22577a",
@@ -59,45 +59,6 @@ const palette = {
   paleMint: "#c7f9cc",
   white: "#f8fffb",
 };
-
-function isValidYoutubeId(youtubeId) {
-  return typeof youtubeId === "string" && YOUTUBE_ID_REGEX.test(youtubeId.trim());
-}
-
-function normalizeArtist(input) {
-  if (!input || typeof input !== "object") return null;
-
-  const name = typeof input.name === "string" ? input.name.trim() : "";
-  const country = typeof input.country === "string" ? input.country.trim() : "";
-  const genre = typeof input.genre === "string" ? input.genre.trim() : "";
-
-  if (!name || !country || !genre) return null;
-
-  const youtubeIdRaw = typeof input.youtubeId === "string" ? input.youtubeId.trim() : "";
-  const youtubeId = isValidYoutubeId(youtubeIdRaw) ? youtubeIdRaw : "";
-  const youtubeSearch = typeof input.youtubeSearch === "string" && input.youtubeSearch.trim()
-    ? input.youtubeSearch.trim()
-    : `${name} ${country} ${genre}`;
-  const flag = typeof input.flag === "string" && input.flag.trim() ? input.flag.trim() : "🌍";
-
-  return { name, country, flag, genre, youtubeId, youtubeSearch };
-}
-
-function dedupeArtists(artists) {
-  const unique = [];
-  const seen = new Set();
-
-  for (const candidate of artists) {
-    const artist = normalizeArtist(candidate);
-    if (!artist) continue;
-    const key = artist.name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(artist);
-  }
-
-  return unique;
-}
 
 function loadStoredArtists() {
   try {

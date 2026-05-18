@@ -1,3 +1,4 @@
+import { normalizeArtist } from "../shared/artist.js";
 export const config = { runtime: "edge" };
 
 // Seed list used only as a reference to avoid duplicates when generating new ones
@@ -16,26 +17,7 @@ const SEED_ARTISTS = [
   "Ensemble Al-Kindī",
 ];
 
-const YOUTUBE_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
 const MAX_EXPAND_COUNT = 30;
-
-function normalizeArtist(input) {
-  if (!input || typeof input !== "object") return null;
-
-  const name = typeof input.name === "string" ? input.name.trim() : "";
-  const country = typeof input.country === "string" ? input.country.trim() : "";
-  const genre = typeof input.genre === "string" ? input.genre.trim() : "";
-  if (!name || !country || !genre) return null;
-
-  const youtubeIdRaw = typeof input.youtubeId === "string" ? input.youtubeId.trim() : "";
-  const youtubeId = YOUTUBE_ID_REGEX.test(youtubeIdRaw) ? youtubeIdRaw : "";
-  const flag = typeof input.flag === "string" && input.flag.trim() ? input.flag.trim() : "🌍";
-  const youtubeSearch = typeof input.youtubeSearch === "string" && input.youtubeSearch.trim()
-    ? input.youtubeSearch.trim()
-    : `${name} ${country} ${genre}`;
-
-  return { name, country, genre, flag, youtubeId, youtubeSearch };
-}
 
 export default async function handler(req) {
   if (req.method !== "POST") {
