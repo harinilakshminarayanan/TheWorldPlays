@@ -207,7 +207,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, [artist.name, artist.country, artist.genre]);
+  }, [artist]);
 
   useEffect(() => {
     const current = getAllArtists();

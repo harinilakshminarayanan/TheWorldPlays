@@ -13,9 +13,11 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
   }
 
+  let safeArtist = { name: "Unknown artist", country: "an unknown place", genre: "traditional music" };
+
   try {
     const { name, country, genre } = await req.json();
-    const safeArtist = {
+    safeArtist = {
       name: typeof name === "string" && name.trim() ? name.trim() : "Unknown artist",
       country: typeof country === "string" && country.trim() ? country.trim() : "an unknown place",
       genre: typeof genre === "string" && genre.trim() ? genre.trim() : "traditional music",
@@ -69,7 +71,7 @@ Be vivid, specific, and enthusiastic. Avoid clichés. Write as if you personally
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    const fallbackStory = buildFallbackStory({ name: "Unknown artist", country: "an unknown place", genre: "traditional music" });
+    const fallbackStory = buildFallbackStory(safeArtist);
     return new Response(JSON.stringify({ error: "Failed to fetch story", story: fallbackStory, source: "fallback-exception" }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
