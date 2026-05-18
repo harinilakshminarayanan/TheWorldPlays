@@ -17,6 +17,7 @@ const SEED_ARTISTS = [
 ];
 
 const YOUTUBE_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
+const MAX_EXPAND_COUNT = 30;
 
 function normalizeArtist(input) {
   if (!input || typeof input !== "object") return null;
@@ -43,7 +44,7 @@ export default async function handler(req) {
 
   try {
     const { existingNames = [], count = 20 } = await req.json();
-    const requestCount = Number.isInteger(count) ? Math.max(1, Math.min(count, 30)) : 20;
+    const requestCount = Number.isInteger(count) ? Math.max(1, Math.min(count, MAX_EXPAND_COUNT)) : 20;
     const knownNames = [
       ...SEED_ARTISTS,
       ...existingNames.filter((name) => typeof name === "string"),

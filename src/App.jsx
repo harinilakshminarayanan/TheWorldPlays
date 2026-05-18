@@ -315,7 +315,7 @@ export default function App() {
               <p style={{ margin: 0, textAlign: "center", color: palette.teal }}>Generating story…</p>
             ) : (
               story.split("\n\n").filter(Boolean).map((paragraph, index) => (
-                <p key={`${index}-${paragraph.slice(0, 12)}`} style={{ margin: "0 0 14px", lineHeight: 1.7, color: index === 0 ? palette.deepBlue : "#356a70" }}>
+                <p key={index} style={{ margin: "0 0 14px", lineHeight: 1.7, color: index === 0 ? palette.deepBlue : "#356a70" }}>
                   {paragraph}
                 </p>
               ))
