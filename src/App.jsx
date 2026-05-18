@@ -162,6 +162,11 @@ export default function App() {
     fetchArtistStory(artist).then((nextStory) => {
       if (!mounted) return;
       setStory(nextStory);
+    }).catch(() => {
+      if (!mounted) return;
+      setStory(buildFallbackStory(artist));
+    }).finally(() => {
+      if (!mounted) return;
       setLoadingStory(false);
     });
 
@@ -192,12 +197,15 @@ export default function App() {
         setTimeout(() => setNewlyAdded(0), 5000);
       }
 
+    }).catch(() => {
+      // Ignore network/API errors; the next page load can retry expansion.
+    }).finally(() => {
       setExpanding(false);
       expandingRef.current = false;
     });
   }, []);
 
-  const hasPlayableVideo = isValidYoutubeId(artist.youtubeId);
+  const hasValidYoutubeId = isValidYoutubeId(artist.youtubeId);
   const countries = useMemo(() => new Set(allArtists.map((a) => a.country)).size, [allArtists]);
 
   return (
@@ -233,7 +241,7 @@ export default function App() {
           <h2 style={{ textAlign: "center", margin: "0 0 20px", fontSize: "clamp(24px, 5vw, 36px)", lineHeight: 1.2 }}>{artist.name}</h2>
 
           <div style={{ borderRadius: "12px", overflow: "hidden", border: `1px solid ${palette.lightMint}`, marginBottom: "20px", background: "#dfffe9" }}>
-            {hasPlayableVideo ? (
+            {hasValidYoutubeId ? (
               <div style={{ position: "relative", paddingBottom: "56.25%" }}>
                 <iframe
                   src={`https://www.youtube.com/embed/${artist.youtubeId}?rel=0&modestbranding=1`}

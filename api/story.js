@@ -26,8 +26,8 @@ export default async function handler(req) {
     const fallbackStory = buildFallbackStory(safeArtist);
 
     if (!process.env.ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ story: fallbackStory, source: "fallback-no-api-key" }), {
-        status: 200,
+      return new Response(JSON.stringify({ story: fallbackStory, source: "fallback-no-api-key", warning: "ANTHROPIC_API_KEY is not configured" }), {
+        status: 503,
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -54,7 +54,13 @@ Be vivid, specific, and enthusiastic. Avoid clichés. Write as if you personally
       }),
     });
 
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch((error) => ({ parseError: String(error) }));
+    if (data.parseError) {
+      return new Response(JSON.stringify({ story: fallbackStory, source: "fallback-parse-error", error: data.parseError }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     if (!response.ok) {
       return new Response(JSON.stringify({ story: fallbackStory, source: "fallback-api-error" }), {
         status: 200,

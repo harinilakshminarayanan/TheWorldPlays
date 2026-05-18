@@ -18,6 +18,7 @@ const SEED_ARTISTS = [
 ];
 
 const MAX_EXPAND_COUNT = 30;
+const DEFAULT_EXPAND_COUNT = 20;
 
 export default async function handler(req) {
   if (req.method !== "POST") {
@@ -25,8 +26,10 @@ export default async function handler(req) {
   }
 
   try {
-    const { existingNames = [], count = 20 } = await req.json();
-    const requestCount = Number.isInteger(count) ? Math.max(1, Math.min(count, MAX_EXPAND_COUNT)) : 20;
+    const { existingNames = [], count = DEFAULT_EXPAND_COUNT } = await req.json();
+    const requestCount = Number.isInteger(count)
+      ? Math.max(1, Math.min(count, MAX_EXPAND_COUNT))
+      : DEFAULT_EXPAND_COUNT;
     const knownNames = [
       ...SEED_ARTISTS,
       ...existingNames.filter((name) => typeof name === "string"),
@@ -34,8 +37,8 @@ export default async function handler(req) {
     const allKnownNames = [...new Set(knownNames)];
 
     if (!process.env.ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ artists: [], source: "skip-no-api-key" }), {
-        status: 200,
+      return new Response(JSON.stringify({ artists: [], source: "skip-no-api-key", warning: "ANTHROPIC_API_KEY is not configured" }), {
+        status: 503,
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -76,7 +79,13 @@ Each object must have exactly these fields:
       }),
     });
 
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch((error) => ({ parseError: String(error) }));
+    if (data.parseError) {
+      return new Response(JSON.stringify({ artists: [], error: data.parseError }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     if (!response.ok) {
       return new Response(JSON.stringify({ artists: [], error: "Anthropic request failed" }), {
         status: 502,
