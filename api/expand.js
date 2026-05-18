@@ -13,8 +13,28 @@ const SEED_ARTISTS = [
   "Imarhan", "Khun Narin's Electric Phin Band", "Djivan Gasparyan",
   "Dobet Gnahoré", "Balkan Beat Box", "Sona Jobarteh", "Sevara Nazarkhan",
   "Taraf de Haïdouks", "Mariem Hassan", "Kimmo Pohjonen", "Ebo Taylor",
-  "Ensemble Al-Kindī", "Vieux Farka Touré", "Stella Chiweshe",
+  "Ensemble Al-Kindī",
 ];
+
+const YOUTUBE_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
+
+function normalizeArtist(input) {
+  if (!input || typeof input !== "object") return null;
+
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const country = typeof input.country === "string" ? input.country.trim() : "";
+  const genre = typeof input.genre === "string" ? input.genre.trim() : "";
+  if (!name || !country || !genre) return null;
+
+  const youtubeIdRaw = typeof input.youtubeId === "string" ? input.youtubeId.trim() : "";
+  const youtubeId = YOUTUBE_ID_REGEX.test(youtubeIdRaw) ? youtubeIdRaw : "";
+  const flag = typeof input.flag === "string" && input.flag.trim() ? input.flag.trim() : "🌍";
+  const youtubeSearch = typeof input.youtubeSearch === "string" && input.youtubeSearch.trim()
+    ? input.youtubeSearch.trim()
+    : `${name} ${country} ${genre}`;
+
+  return { name, country, genre, flag, youtubeId, youtubeSearch };
+}
 
 export default async function handler(req) {
   if (req.method !== "POST") {
@@ -23,10 +43,21 @@ export default async function handler(req) {
 
   try {
     const { existingNames = [], count = 20 } = await req.json();
+    const requestCount = Number.isInteger(count) ? Math.max(1, Math.min(count, 30)) : 20;
+    const knownNames = [
+      ...SEED_ARTISTS,
+      ...existingNames.filter((name) => typeof name === "string"),
+    ];
+    const allKnownNames = [...new Set(knownNames)];
 
-    const allKnownNames = [...new Set([...SEED_ARTISTS, ...existingNames])];
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({ artists: [], source: "skip-no-api-key" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-    const prompt = `You are a world music expert and ethnomusicologist. Generate ${count} underground, obscure, or underrepresented artists from around the world that most Western listeners have never heard of.
+    const prompt = `You are a world music expert and ethnomusicologist. Generate ${requestCount} underground, obscure, or underrepresented artists from around the world that most Western listeners have never heard of.
 
 STRICT RULES:
 - NO mainstream or widely-known artists (no Taylor Swift, no BTS, no Drake, etc.)
@@ -62,8 +93,15 @@ Each object must have exactly these fields:
       }),
     });
 
-    const data = await response.json();
-    const raw = data.content?.[0]?.text || "[]";
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return new Response(JSON.stringify({ artists: [], error: "Anthropic request failed" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const raw = typeof data.content?.[0]?.text === "string" ? data.content[0].text : "[]";
 
     // Safely parse — strip any accidental markdown fences
     const cleaned = raw.replace(/```json|```/g, "").trim();
@@ -71,14 +109,32 @@ Each object must have exactly these fields:
     try {
       newArtists = JSON.parse(cleaned);
     } catch {
-      return new Response(JSON.stringify({ error: "Parse failed", raw }), { status: 500 });
+      return new Response(JSON.stringify({ artists: [], error: "Parse failed" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    // Filter out any that duplicated existing names (case-insensitive)
+    if (!Array.isArray(newArtists)) {
+      return new Response(JSON.stringify({ artists: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Filter out duplicates and malformed artists
     const existingLower = new Set(allKnownNames.map((n) => n.toLowerCase()));
-    const filtered = newArtists.filter(
-      (a) => a.name && !existingLower.has(a.name.toLowerCase())
-    );
+    const filtered = [];
+    const seen = new Set();
+
+    for (const rawArtist of newArtists) {
+      const artist = normalizeArtist(rawArtist);
+      if (!artist) continue;
+      const lowered = artist.name.toLowerCase();
+      if (existingLower.has(lowered) || seen.has(lowered)) continue;
+      seen.add(lowered);
+      filtered.push(artist);
+    }
 
     return new Response(JSON.stringify({ artists: filtered }), {
       status: 200,
