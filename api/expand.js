@@ -97,7 +97,7 @@ Each object must have exactly these fields:
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       return new Response(JSON.stringify({ artists: [], error: "Anthropic request failed" }), {
-        status: 200,
+        status: 502,
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -111,7 +111,7 @@ Each object must have exactly these fields:
       newArtists = JSON.parse(cleaned);
     } catch {
       return new Response(JSON.stringify({ artists: [], error: "Parse failed" }), {
-        status: 200,
+        status: 500,
         headers: { "Content-Type": "application/json" },
       });
     }

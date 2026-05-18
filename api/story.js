@@ -73,7 +73,7 @@ Be vivid, specific, and enthusiastic. Avoid clichés. Write as if you personally
   } catch (err) {
     const fallbackStory = buildFallbackStory(safeArtist);
     return new Response(JSON.stringify({ error: "Failed to fetch story", story: fallbackStory, source: "fallback-exception" }), {
-      status: 200,
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
