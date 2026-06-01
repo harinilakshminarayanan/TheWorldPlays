@@ -1,50 +1,50 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { dedupeArtists, isValidYoutubeId } from "../shared/artist.js";
+import { dedupeArtists, isValidSpotifyId } from "../shared/artist.js";
 
 const SEED_ARTISTS = [
-  { name: "Shovkat Mirzayev", country: "Uzbekistan", flag: "🇺🇿", genre: "Shashmaqam / Classical Central Asian", youtubeId: "cq6pNzmNjrA", youtubeSearch: "Shovkat Mirzayev Uzbek music" },
-  { name: "Tinariwen", country: "Mali / Sahara", flag: "🇲🇱", genre: "Tuareg Desert Blues", youtubeId: "5LkMtmVBDlg", youtubeSearch: "Tinariwen Amassakoul", pieceTitle: "Amassakoul" },
-  { name: "Huun-Huur-Tu", country: "Tuva, Russia", flag: "🇷🇺", genre: "Tuvan Throat Singing", youtubeId: "R2ovoRyv4mo", youtubeSearch: "Huun Huur Tu throat singing" },
-  { name: "Byambasuren Sharav", country: "Mongolia", flag: "🇲🇳", genre: "Urtiin Duu / Long Song", youtubeId: "d7VkHdVbBhU", youtubeSearch: "Mongolian long song urtiin duu" },
-  { name: "Susheela Raman", country: "Tamil Nadu / UK", flag: "🇮🇳", genre: "Tamil Folk Fusion", youtubeId: "3DxFAi4HGWA", youtubeSearch: "Susheela Raman Salt Rain", pieceTitle: "Salt Rain" },
-  { name: "Trio Mandili", country: "Georgia", flag: "🇬🇪", genre: "Georgian Polyphonic Folk", youtubeId: "rB2RzNgVMAs", youtubeSearch: "Trio Mandili Georgian folk" },
-  { name: "Bombino", country: "Niger", flag: "🇳🇪", genre: "Tuareg Guitar / Agadez Rock", youtubeId: "6lMvhCB0zAA", youtubeSearch: "Bombino Niger Tuareg guitar" },
-  { name: "Vieux Farka Touré", country: "Mali", flag: "🇲🇱", genre: "Saharan Blues", youtubeId: "kqMSrLOcUkc", youtubeSearch: "Vieux Farka Touré blues" },
-  { name: "Tanya Tagaq", country: "Canada (Inuit)", flag: "🇨🇦", genre: "Inuit Throat Singing / Experimental", youtubeId: "XVUcwBSI8qs", youtubeSearch: "Tanya Tagaq throat singing experimental" },
-  { name: "Kayhan Kalhor", country: "Iran", flag: "🇮🇷", genre: "Persian Classical / Kamancheh", youtubeId: "VBVk1GmomYk", youtubeSearch: "Kayhan Kalhor kamancheh Persian" },
-  { name: "Oumou Sangaré", country: "Mali", flag: "🇲🇱", genre: "Wassoulou / West African Soul", youtubeId: "dZ7TbS9PZXM", youtubeSearch: "Oumou Sangaré wassoulou" },
-  { name: "Stella Chiweshe", country: "Zimbabwe", flag: "🇿🇼", genre: "Mbira / Shona Spirit Music", youtubeId: "Q4qk4QPZSHE", youtubeSearch: "Stella Chiweshe mbira Zimbabwe" },
-  { name: "Lila Downs", country: "Oaxaca, Mexico", flag: "🇲🇽", genre: "Zapotec / Mexican Folk", youtubeId: "1_-3pZAZz-M", youtubeSearch: "Lila Downs Oaxacan folk" },
-  { name: "Amara Toure", country: "Senegal", flag: "🇸🇳", genre: "Afro-Cuban / Senegalese 70s Soul", youtubeId: "kGHGI7q8AkA", youtubeSearch: "Amara Toure Senegal soul" },
-  { name: "Nusrat Fateh Ali Khan", country: "Pakistan", flag: "🇵🇰", genre: "Qawwali / Sufi Devotional", youtubeId: "qKeF8J0YDXI", youtubeSearch: "Nusrat Fateh Ali Khan qawwali" },
-  { name: "Mari Boine", country: "Norway (Sámi)", flag: "🇳🇴", genre: "Sámi Joik / Arctic Folk", youtubeId: "0ueqPMVP_0k", youtubeSearch: "Mari Boine Sami joik Norway" },
-  { name: "Aurelio Martinez", country: "Honduras", flag: "🇭🇳", genre: "Garifuna / Punta", youtubeId: "vBHKbilrqGs", youtubeSearch: "Aurelio Martinez Garifuna Honduras" },
-  { name: "Ballaké Sissoko", country: "Mali", flag: "🇲🇱", genre: "Kora / West African Classical", youtubeId: "Cs5zFfBmFkg", youtubeSearch: "Ballaké Sissoko kora Mali" },
-  { name: "Aziza Mustafa Zadeh", country: "Azerbaijan", flag: "🇦🇿", genre: "Jazz / Mugham Fusion", youtubeId: "MFnFCHWGDnc", youtubeSearch: "Aziza Mustafa Zadeh Azerbaijan jazz" },
-  { name: "Anouar Brahem", country: "Tunisia", flag: "🇹🇳", genre: "Oud / North African Jazz", youtubeId: "jPU2P5aSKDo", youtubeSearch: "Anouar Brahem oud Tunisia" },
-  { name: "Rokia Traoré", country: "Mali", flag: "🇲🇱", genre: "Mande Folk / Alternative African", youtubeId: "FpZiNyHmHOA", youtubeSearch: "Rokia Traoré Mali folk" },
-  { name: "Hassan Hakmoun", country: "Morocco", flag: "🇲🇦", genre: "Gnawa / Trance Music", youtubeId: "JmBfKVCNw8k", youtubeSearch: "Hassan Hakmoun Gnawa Morocco" },
-  { name: "Sainkho Namtchylak", country: "Tuva", flag: "🇷🇺", genre: "Experimental Throat Singing", youtubeId: "6yXAv7IEpFY", youtubeSearch: "Sainkho Namtchylak experimental" },
-  { name: "Trad.Attack!", country: "Estonia", flag: "🇪🇪", genre: "Estonian Folk / Electronic", youtubeId: "bOAHoJxkqG4", youtubeSearch: "Trad.Attack Estonia folk electronic" },
-  { name: "Tamikrest", country: "Mali / Algeria", flag: "🇲🇱", genre: "Tuareg Rock", youtubeId: "B4gD_LvKD1c", youtubeSearch: "Tamikrest Tuareg rock" },
-  { name: "Susana Baca", country: "Peru", flag: "🇵🇪", genre: "Afro-Peruvian / Festejo", youtubeId: "dGTwvHIf3-k", youtubeSearch: "Susana Baca Afro Peruvian" },
-  { name: "Emel Mathlouthi", country: "Tunisia", flag: "🇹🇳", genre: "Arab Alternative / Protest Folk", youtubeId: "hFQlFJCTxHo", youtubeSearch: "Emel Mathlouthi Kelmti Horra", pieceTitle: "Kelmti Horra" },
-  { name: "Altın Gün", country: "Turkey / Netherlands", flag: "🇹🇷", genre: "Anatolian Psych Rock", youtubeId: "c5XuiJbqX0Y", youtubeSearch: "Altın Gün Anatolian psychedelic" },
-  { name: "Noura Mint Seymali", country: "Mauritania", flag: "🇲🇷", genre: "Moorish Griot / Desert Blues", youtubeId: "6XUPB7lFCGg", youtubeSearch: "Noura Mint Seymali Mauritania" },
-  { name: "Mahsa Vahdat", country: "Iran", flag: "🇮🇷", genre: "Persian Classical Voice", youtubeId: "DY25l0GmJLo", youtubeSearch: "Mahsa Vahdat Persian classical" },
-  { name: "Hukwe Zawose", country: "Tanzania", flag: "🇹🇿", genre: "Gogo Music / Ilimba", youtubeId: "VBLX3LWsYoU", youtubeSearch: "Hukwe Zawose Tanzania Gogo music" },
-  { name: "Imarhan", country: "Algeria", flag: "🇩🇿", genre: "Tuareg Rock / Tamasheq", youtubeId: "9E7EWzCxEiU", youtubeSearch: "Imarhan Algeria Tuareg" },
-  { name: "Khun Narin's Electric Phin Band", country: "Thailand", flag: "🇹🇭", genre: "Thai Phin / Psychedelic Folk", youtubeId: "iw6DEhJFJms", youtubeSearch: "Khun Narin electric phin Thailand" },
-  { name: "Djivan Gasparyan", country: "Armenia", flag: "🇦🇲", genre: "Armenian Duduk / Folk", youtubeId: "D5qSjrX6Hgc", youtubeSearch: "Djivan Gasparyan duduk Armenia" },
-  { name: "Dobet Gnahoré", country: "Côte d'Ivoire", flag: "🇨🇮", genre: "Afro-Soul / Acoustic African", youtubeId: "7sPHqFO-J0Y", youtubeSearch: "Dobet Gnahoré Côte d'Ivoire" },
-  { name: "Balkan Beat Box", country: "Israel / Balkans", flag: "🇮🇱", genre: "Balkan / Middle Eastern Electronic", youtubeId: "FQZ5wc0c7WY", youtubeSearch: "Balkan Beat Box electronic" },
-  { name: "Sona Jobarteh", country: "Gambia / UK", flag: "🇬🇲", genre: "Kora / Griot / West African", youtubeId: "FdBMikCt_6Y", youtubeSearch: "Sona Jobarteh kora Gambia" },
-  { name: "Sevara Nazarkhan", country: "Uzbekistan", flag: "🇺🇿", genre: "Uzbek Folk Pop / Shashmaqam", youtubeId: "9S-Wd6WZP6s", youtubeSearch: "Sevara Nazarkhan Uzbekistan folk" },
-  { name: "Taraf de Haïdouks", country: "Romania", flag: "🇷🇴", genre: "Romani Violin / Lăutari", youtubeId: "9txl_JQM30o", youtubeSearch: "Taraf de Haidouks Romanian Romani" },
-  { name: "Mariem Hassan", country: "Western Sahara", flag: "🇪🇭", genre: "Sahrawi Folk / Haul", youtubeId: "CRg83hCqzk4", youtubeSearch: "Mariem Hassan Sahrawi Western Sahara" },
-  { name: "Kimmo Pohjonen", country: "Finland", flag: "🇫🇮", genre: "Experimental Accordion / Nordic", youtubeId: "Wh6jO9Rxhio", youtubeSearch: "Kimmo Pohjonen accordion Finland" },
-  { name: "Ebo Taylor", country: "Ghana", flag: "🇬🇭", genre: "Highlife / Afrobeat", youtubeId: "6fJl3gVi2Fk", youtubeSearch: "Ebo Taylor Ghana highlife" },
-  { name: "Ensemble Al-Kindī", country: "Syria", flag: "🇸🇾", genre: "Sufi Sama / Classical Arab", youtubeId: "phlL8BtGHNo", youtubeSearch: "Ensemble Al-Kindi Syrian Sufi" },
+  { name: "Shovkat Mirzayev", country: "Uzbekistan", flag: "🇺🇿", genre: "Shashmaqam / Classical Central Asian", youtubeId: "cq6pNzmNjrA", youtubeSearch: "Shovkat Mirzayev Uzbek music", spotifyId: "" },
+  { name: "Tinariwen", country: "Mali / Sahara", flag: "🇲🇱", genre: "Tuareg Desert Blues", youtubeId: "5LkMtmVBDlg", youtubeSearch: "Tinariwen Amassakoul", pieceTitle: "Amassakoul", spotifyId: "5I5k3CTnrxdS6KSjUsMvwV" },
+  { name: "Huun-Huur-Tu", country: "Tuva, Russia", flag: "🇷🇺", genre: "Tuvan Throat Singing", youtubeId: "R2ovoRyv4mo", youtubeSearch: "Huun Huur Tu throat singing", spotifyId: "6j8IT8OcKmBZSiMiHDXqWD" },
+  { name: "Byambasuren Sharav", country: "Mongolia", flag: "🇲🇳", genre: "Urtiin Duu / Long Song", youtubeId: "d7VkHdVbBhU", youtubeSearch: "Mongolian long song urtiin duu", spotifyId: "" },
+  { name: "Susheela Raman", country: "Tamil Nadu / UK", flag: "🇮🇳", genre: "Tamil Folk Fusion", youtubeId: "3DxFAi4HGWA", youtubeSearch: "Susheela Raman Salt Rain", pieceTitle: "Salt Rain", spotifyId: "6fAFPJn6ZlpVhCvT8tAbFi" },
+  { name: "Trio Mandili", country: "Georgia", flag: "🇬🇪", genre: "Georgian Polyphonic Folk", youtubeId: "rB2RzNgVMAs", youtubeSearch: "Trio Mandili Georgian folk", spotifyId: "4nvyKi1a4LjcVFhFNjM6c1" },
+  { name: "Bombino", country: "Niger", flag: "🇳🇪", genre: "Tuareg Guitar / Agadez Rock", youtubeId: "6lMvhCB0zAA", youtubeSearch: "Bombino Niger Tuareg guitar", spotifyId: "3cFJH3bPW0eCEJVnDrS5AK" },
+  { name: "Vieux Farka Touré", country: "Mali", flag: "🇲🇱", genre: "Saharan Blues", youtubeId: "kqMSrLOcUkc", youtubeSearch: "Vieux Farka Touré blues", spotifyId: "6ykZFHn3E8UwmEXRXHqzPp" },
+  { name: "Tanya Tagaq", country: "Canada (Inuit)", flag: "🇨🇦", genre: "Inuit Throat Singing / Experimental", youtubeId: "XVUcwBSI8qs", youtubeSearch: "Tanya Tagaq throat singing experimental", spotifyId: "4Pf4BV0E4zGcEPbU1DdL5w" },
+  { name: "Kayhan Kalhor", country: "Iran", flag: "🇮🇷", genre: "Persian Classical / Kamancheh", youtubeId: "VBVk1GmomYk", youtubeSearch: "Kayhan Kalhor kamancheh Persian", spotifyId: "26hb0ueBTcb9k8HNYj5A1q" },
+  { name: "Oumou Sangaré", country: "Mali", flag: "🇲🇱", genre: "Wassoulou / West African Soul", youtubeId: "dZ7TbS9PZXM", youtubeSearch: "Oumou Sangaré wassoulou", spotifyId: "7e28pMjgPgUoGq4m0Xhz6E" },
+  { name: "Stella Chiweshe", country: "Zimbabwe", flag: "🇿🇼", genre: "Mbira / Shona Spirit Music", youtubeId: "Q4qk4QPZSHE", youtubeSearch: "Stella Chiweshe mbira Zimbabwe", spotifyId: "" },
+  { name: "Lila Downs", country: "Oaxaca, Mexico", flag: "🇲🇽", genre: "Zapotec / Mexican Folk", youtubeId: "1_-3pZAZz-M", youtubeSearch: "Lila Downs Oaxacan folk", spotifyId: "7h2dwSBK3ofNF3lcKhnNTx" },
+  { name: "Amara Toure", country: "Senegal", flag: "🇸🇳", genre: "Afro-Cuban / Senegalese 70s Soul", youtubeId: "kGHGI7q8AkA", youtubeSearch: "Amara Toure Senegal soul", spotifyId: "" },
+  { name: "Nusrat Fateh Ali Khan", country: "Pakistan", flag: "🇵🇰", genre: "Qawwali / Sufi Devotional", youtubeId: "qKeF8J0YDXI", youtubeSearch: "Nusrat Fateh Ali Khan qawwali", spotifyId: "5NL2YIQZ5uo7FU7sXUa0Xe" },
+  { name: "Mari Boine", country: "Norway (Sámi)", flag: "🇳🇴", genre: "Sámi Joik / Arctic Folk", youtubeId: "0ueqPMVP_0k", youtubeSearch: "Mari Boine Sami joik Norway", spotifyId: "2HdVELAjWAvmaCEPVnkr8A" },
+  { name: "Aurelio Martinez", country: "Honduras", flag: "🇭🇳", genre: "Garifuna / Punta", youtubeId: "vBHKbilrqGs", youtubeSearch: "Aurelio Martinez Garifuna Honduras", spotifyId: "" },
+  { name: "Ballaké Sissoko", country: "Mali", flag: "🇲🇱", genre: "Kora / West African Classical", youtubeId: "Cs5zFfBmFkg", youtubeSearch: "Ballaké Sissoko kora Mali", spotifyId: "6ixrMNMxF8mzOe56YDqhgV" },
+  { name: "Aziza Mustafa Zadeh", country: "Azerbaijan", flag: "🇦🇿", genre: "Jazz / Mugham Fusion", youtubeId: "MFnFCHWGDnc", youtubeSearch: "Aziza Mustafa Zadeh Azerbaijan jazz", spotifyId: "4wXCVBQRWYgjJa0MQPrWCB" },
+  { name: "Anouar Brahem", country: "Tunisia", flag: "🇹🇳", genre: "Oud / North African Jazz", youtubeId: "jPU2P5aSKDo", youtubeSearch: "Anouar Brahem oud Tunisia", spotifyId: "2mCgCRDeHOyObTXjDlYP9x" },
+  { name: "Rokia Traoré", country: "Mali", flag: "🇲🇱", genre: "Mande Folk / Alternative African", youtubeId: "FpZiNyHmHOA", youtubeSearch: "Rokia Traoré Mali folk", spotifyId: "6cg89MoP8BxGKGi9J8o5xG" },
+  { name: "Hassan Hakmoun", country: "Morocco", flag: "🇲🇦", genre: "Gnawa / Trance Music", youtubeId: "JmBfKVCNw8k", youtubeSearch: "Hassan Hakmoun Gnawa Morocco", spotifyId: "" },
+  { name: "Sainkho Namtchylak", country: "Tuva", flag: "🇷🇺", genre: "Experimental Throat Singing", youtubeId: "6yXAv7IEpFY", youtubeSearch: "Sainkho Namtchylak experimental", spotifyId: "" },
+  { name: "Trad.Attack!", country: "Estonia", flag: "🇪🇪", genre: "Estonian Folk / Electronic", youtubeId: "bOAHoJxkqG4", youtubeSearch: "Trad.Attack Estonia folk electronic", spotifyId: "3oQVXcJVzGhXJW5pTv7vVF" },
+  { name: "Tamikrest", country: "Mali / Algeria", flag: "🇲🇱", genre: "Tuareg Rock", youtubeId: "B4gD_LvKD1c", youtubeSearch: "Tamikrest Tuareg rock", spotifyId: "7I3skFGLOzUZzJiuJPD3AX" },
+  { name: "Susana Baca", country: "Peru", flag: "🇵🇪", genre: "Afro-Peruvian / Festejo", youtubeId: "dGTwvHIf3-k", youtubeSearch: "Susana Baca Afro Peruvian", spotifyId: "7nMUFRpFNlblb44RTAAFGZ" },
+  { name: "Emel Mathlouthi", country: "Tunisia", flag: "🇹🇳", genre: "Arab Alternative / Protest Folk", youtubeId: "hFQlFJCTxHo", youtubeSearch: "Emel Mathlouthi Kelmti Horra", pieceTitle: "Kelmti Horra", spotifyId: "3UMnMKRxEFxXMBNiUUiSlJ" },
+  { name: "Altın Gün", country: "Turkey / Netherlands", flag: "🇹🇷", genre: "Anatolian Psych Rock", youtubeId: "c5XuiJbqX0Y", youtubeSearch: "Altın Gün Anatolian psychedelic", spotifyId: "5hTpBe8h35rJ67eAWHOCNy" },
+  { name: "Noura Mint Seymali", country: "Mauritania", flag: "🇲🇷", genre: "Moorish Griot / Desert Blues", youtubeId: "6XUPB7lFCGg", youtubeSearch: "Noura Mint Seymali Mauritania", spotifyId: "" },
+  { name: "Mahsa Vahdat", country: "Iran", flag: "🇮🇷", genre: "Persian Classical Voice", youtubeId: "DY25l0GmJLo", youtubeSearch: "Mahsa Vahdat Persian classical", spotifyId: "3WUOGv7V7iXiMhqCbkMiqd" },
+  { name: "Hukwe Zawose", country: "Tanzania", flag: "🇹🇿", genre: "Gogo Music / Ilimba", youtubeId: "VBLX3LWsYoU", youtubeSearch: "Hukwe Zawose Tanzania Gogo music", spotifyId: "" },
+  { name: "Imarhan", country: "Algeria", flag: "🇩🇿", genre: "Tuareg Rock / Tamasheq", youtubeId: "9E7EWzCxEiU", youtubeSearch: "Imarhan Algeria Tuareg", spotifyId: "3bEDHhMiSHU2DLgwXe3ELm" },
+  { name: "Khun Narin's Electric Phin Band", country: "Thailand", flag: "🇹🇭", genre: "Thai Phin / Psychedelic Folk", youtubeId: "iw6DEhJFJms", youtubeSearch: "Khun Narin electric phin Thailand", spotifyId: "" },
+  { name: "Djivan Gasparyan", country: "Armenia", flag: "🇦🇲", genre: "Armenian Duduk / Folk", youtubeId: "D5qSjrX6Hgc", youtubeSearch: "Djivan Gasparyan duduk Armenia", spotifyId: "6UfomURCiWAM0K1FZ8E1Ca" },
+  { name: "Dobet Gnahoré", country: "Côte d'Ivoire", flag: "🇨🇮", genre: "Afro-Soul / Acoustic African", youtubeId: "7sPHqFO-J0Y", youtubeSearch: "Dobet Gnahoré Côte d'Ivoire", spotifyId: "6gBSLRlJQJpJFb9YBHXO8c" },
+  { name: "Balkan Beat Box", country: "Israel / Balkans", flag: "🇮🇱", genre: "Balkan / Middle Eastern Electronic", youtubeId: "FQZ5wc0c7WY", youtubeSearch: "Balkan Beat Box electronic", spotifyId: "6oCXrFfEHDW5J2kxBrEaqL" },
+  { name: "Sona Jobarteh", country: "Gambia / UK", flag: "🇬🇲", genre: "Kora / Griot / West African", youtubeId: "FdBMikCt_6Y", youtubeSearch: "Sona Jobarteh kora Gambia", spotifyId: "2A9GlHBtnSmJnGqBJFh9vX" },
+  { name: "Sevara Nazarkhan", country: "Uzbekistan", flag: "🇺🇿", genre: "Uzbek Folk Pop / Shashmaqam", youtubeId: "9S-Wd6WZP6s", youtubeSearch: "Sevara Nazarkhan Uzbekistan folk", spotifyId: "" },
+  { name: "Taraf de Haïdouks", country: "Romania", flag: "🇷🇴", genre: "Romani Violin / Lăutari", youtubeId: "9txl_JQM30o", youtubeSearch: "Taraf de Haidouks Romanian Romani", spotifyId: "3pRmJHVGznqerYp3YvpzJb" },
+  { name: "Mariem Hassan", country: "Western Sahara", flag: "🇪🇭", genre: "Sahrawi Folk / Haul", youtubeId: "CRg83hCqzk4", youtubeSearch: "Mariem Hassan Sahrawi Western Sahara", spotifyId: "" },
+  { name: "Kimmo Pohjonen", country: "Finland", flag: "🇫🇮", genre: "Experimental Accordion / Nordic", youtubeId: "Wh6jO9Rxhio", youtubeSearch: "Kimmo Pohjonen accordion Finland", spotifyId: "3JfqYLBhm7hJdPeXEFLMzr" },
+  { name: "Ebo Taylor", country: "Ghana", flag: "🇬🇭", genre: "Highlife / Afrobeat", youtubeId: "6fJl3gVi2Fk", youtubeSearch: "Ebo Taylor Ghana highlife", spotifyId: "6FmVSQoqtlMqSgQxGn8g5h" },
+  { name: "Ensemble Al-Kindī", country: "Syria", flag: "🇸🇾", genre: "Sufi Sama / Classical Arab", youtubeId: "phlL8BtGHNo", youtubeSearch: "Ensemble Al-Kindi Syrian Sufi", spotifyId: "" },
 ];
 
 const STORAGE_KEY = "twp_artists_v1";
@@ -87,10 +87,10 @@ function getAllArtists() {
 
 function getDailyArtist(artists) {
   const safeArtists = Array.isArray(artists) && artists.length > 0 ? artists : SEED_ARTISTS;
-  const playableArtists = safeArtists.filter((artist) => isValidYoutubeId(artist?.youtubeId));
+  const playableArtists = safeArtists.filter((artist) => isValidSpotifyId(artist?.spotifyId));
   const candidates = playableArtists.length > 0
     ? playableArtists
-    : SEED_ARTISTS.filter((artist) => isValidYoutubeId(artist?.youtubeId));
+    : SEED_ARTISTS.filter((artist) => isValidSpotifyId(artist?.spotifyId));
 
   if (candidates.length === 0) return SEED_ARTISTS[0];
   const now = new Date();
@@ -154,12 +154,16 @@ function buildFallbackDetails(artist) {
   };
 }
 
-function buildWatchUrl(youtubeId) {
-  return `https://www.youtube.com/watch?v=${youtubeId}`;
+function buildSpotifyEmbedUrl(spotifyId) {
+  return `https://open.spotify.com/embed/artist/${spotifyId}?utm_source=generator&theme=0`;
 }
 
-function buildEmbedUrl(youtubeId) {
-  return `https://www.youtube.com/embed/${youtubeId}?playsinline=1&rel=0`;
+function buildSpotifyUrl(spotifyId) {
+  return `https://open.spotify.com/artist/${spotifyId}`;
+}
+
+function buildSpotifySearchUrl(artistName) {
+  return `https://open.spotify.com/search/${encodeURIComponent(artistName)}`;
 }
 
 async function fetchArtistDetails(artist) {
@@ -220,16 +224,13 @@ export default function App() {
 
   const artist = useMemo(() => getDailyArtist(allArtists), [allArtists]);
   const pieceTitle = useMemo(() => derivePieceTitle(artist), [artist]);
-  const hasValidYoutubeId = isValidYoutubeId(artist.youtubeId);
+  const hasValidSpotifyId = isValidSpotifyId(artist.spotifyId);
   const countries = useMemo(() => new Set(allArtists.map((a) => a.country)).size, [allArtists]);
-  const watchUrl = useMemo(() => (
-    hasValidYoutubeId
-      ? buildWatchUrl(artist.youtubeId)
-      : `https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`
-  ), [artist.youtubeId, artist.youtubeSearch, hasValidYoutubeId]);
-  const thumbnailUrl = useMemo(() => (
-    hasValidYoutubeId ? `https://i.ytimg.com/vi/${artist.youtubeId}/hqdefault.jpg` : ""
-  ), [artist.youtubeId, hasValidYoutubeId]);
+  const spotifyUrl = useMemo(() => (
+    hasValidSpotifyId
+      ? buildSpotifyUrl(artist.spotifyId)
+      : buildSpotifySearchUrl(artist.name)
+  ), [artist.spotifyId, artist.name, hasValidSpotifyId]);
 
   useEffect(() => {
     let mounted = true;
@@ -329,23 +330,22 @@ export default function App() {
           </p>
 
           <div style={{ borderRadius: "22px", overflow: "hidden", border: `1px solid ${palette.border}`, marginBottom: "24px", background: "#dff7f3" }}>
-            {hasValidYoutubeId ? (
+            {hasValidSpotifyId ? (
               playerLoaded ? (
-                <div style={{ position: "relative", paddingBottom: "56.25%" }}>
-                  <iframe
-                    src={buildEmbedUrl(artist.youtubeId)}
-                    title={`${artist.name} – ${pieceTitle}`}
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    referrerPolicy="strict-origin-when-cross-origin"
-                  />
-                </div>
+                <iframe
+                  src={buildSpotifyEmbedUrl(artist.spotifyId)}
+                  title={`${artist.name} – ${pieceTitle}`}
+                  width="100%"
+                  height="352"
+                  style={{ border: "none", display: "block" }}
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  loading="lazy"
+                />
               ) : (
                 <button
                   type="button"
                   onClick={() => setPlayerLoaded(true)}
-                  aria-label={`Play ${pieceTitle} in the embedded YouTube player`}
+                  aria-label={`Play ${artist.name} on the embedded Spotify player`}
                   style={{
                     width: "100%",
                     minHeight: "320px",
@@ -353,7 +353,7 @@ export default function App() {
                     cursor: "pointer",
                     padding: "36px 24px",
                     color: "#ffffff",
-                    backgroundImage: `linear-gradient(180deg, rgba(24, 59, 77, 0.18), rgba(24, 59, 77, 0.76)), url(${thumbnailUrl})`,
+                    background: "linear-gradient(180deg, rgba(24, 59, 77, 0.18), rgba(24, 59, 77, 0.76)), linear-gradient(135deg, #1DB954 0%, #191414 100%)",
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                     display: "grid",
@@ -362,14 +362,14 @@ export default function App() {
                   }}
                 >
                   <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "12px", maxWidth: "480px" }}>
-                    <span style={{ width: "74px", height: "74px", borderRadius: "999px", background: "rgba(255,255,255,0.92)", color: palette.ink, display: "grid", placeItems: "center", fontSize: "30px", boxShadow: "0 10px 26px rgba(0,0,0,0.18)" }}>
+                    <span style={{ width: "74px", height: "74px", borderRadius: "999px", background: "#1DB954", color: "#ffffff", display: "grid", placeItems: "center", fontSize: "30px", boxShadow: "0 10px 26px rgba(0,0,0,0.28)" }}>
                       ▶
                     </span>
                     <span style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 700 }}>
-                      Play the featured recording
+                      Play on Spotify
                     </span>
                     <span style={{ fontSize: "15px", lineHeight: 1.6, color: "rgba(255,255,255,0.92)" }}>
-                      Click to load the embedded YouTube player for <strong>{pieceTitle}</strong>.
+                      Click to load the embedded Spotify player for <strong>{artist.name}</strong>.
                     </span>
                   </span>
                 </button>
@@ -377,32 +377,32 @@ export default function App() {
             ) : (
               <div style={{ padding: "32px 20px", textAlign: "center" }}>
                 <p style={{ margin: "0 0 8px", fontWeight: 700 }}>Embedded player unavailable</p>
-                <p style={{ margin: 0, color: palette.teal }}>Use the YouTube links below to hear the featured piece.</p>
+                <p style={{ margin: 0, color: palette.teal }}>Use the Spotify link below to listen.</p>
               </div>
             )}
           </div>
 
           <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
             <a
-              href={watchUrl}
+              href={spotifyUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
                 display: "inline-block",
                 textDecoration: "none",
                 color: "#ffffff",
-                background: palette.teal,
+                background: "#1DB954",
                 borderRadius: "999px",
                 padding: "12px 18px",
                 fontWeight: 700,
                 fontSize: "14px",
-                boxShadow: "0 12px 24px rgba(43, 122, 120, 0.18)",
+                boxShadow: "0 12px 24px rgba(29, 185, 84, 0.28)",
               }}
             >
-              Watch this recording on YouTube
+              {hasValidSpotifyId ? "Open artist on Spotify" : "Find on Spotify"}
             </a>
             <a
-              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`}
+              href={buildSpotifySearchUrl(artist.name)}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -417,12 +417,12 @@ export default function App() {
                 fontSize: "14px",
               }}
             >
-              Explore more on YouTube
+              Search more on Spotify
             </a>
           </div>
 
           <p style={{ margin: "0 0 24px", textAlign: "center", color: "#5c7a80", fontSize: "13px" }}>
-            If the embedded player is blocked by your browser or by YouTube, use the direct watch button above.
+            If the embedded player is blocked, use the Spotify button above to listen directly.
           </p>
 
           <section style={{ display: "grid", gap: "18px", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>

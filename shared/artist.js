@@ -4,6 +4,13 @@ export function isValidYoutubeId(youtubeId) {
   return typeof youtubeId === "string" && YOUTUBE_ID_REGEX.test(youtubeId.trim());
 }
 
+// Spotify artist/track/album IDs are 22-character Base62 strings
+export const SPOTIFY_ID_REGEX = /^[a-zA-Z0-9]{22}$/;
+
+export function isValidSpotifyId(spotifyId) {
+  return typeof spotifyId === "string" && SPOTIFY_ID_REGEX.test(spotifyId.trim());
+}
+
 function extractYoutubeId(value) {
   if (typeof value !== "string") return "";
   const trimmed = value.trim();
@@ -43,7 +50,11 @@ export function normalizeArtist(input) {
   if (!name || !country || !genre) return null;
 
   const youtubeId = extractYoutubeId(input.youtubeId) || extractYoutubeId(input.youtubeUrl);
-  if (!youtubeId) return null;
+  const spotifyId = typeof input.spotifyId === "string" && isValidSpotifyId(input.spotifyId.trim())
+    ? input.spotifyId.trim()
+    : "";
+  // An artist must have at least one playable identifier
+  if (!youtubeId && !spotifyId) return null;
   const flag = typeof input.flag === "string" && input.flag.trim() ? input.flag.trim() : "🌍";
   const youtubeSearch = typeof input.youtubeSearch === "string" && input.youtubeSearch.trim()
     ? input.youtubeSearch.trim()
@@ -55,7 +66,7 @@ export function normalizeArtist(input) {
     ? input.pieceDescription.trim()
     : "";
 
-  return { name, country, genre, flag, youtubeId, youtubeSearch, pieceTitle, pieceDescription };
+  return { name, country, genre, flag, youtubeId, youtubeSearch, spotifyId, pieceTitle, pieceDescription };
 }
 
 export function dedupeArtists(artists) {
