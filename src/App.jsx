@@ -216,9 +216,14 @@ export default function App() {
   const pieceTitle = useMemo(() => derivePieceTitle(artist), [artist]);
   const hasValidYoutubeId = isValidYoutubeId(artist.youtubeId);
   const countries = useMemo(() => new Set(allArtists.map((a) => a.country)).size, [allArtists]);
-  const watchUrl = hasValidYoutubeId
-    ? buildWatchUrl(artist.youtubeId)
-    : `https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`;
+  const watchUrl = useMemo(() => (
+    hasValidYoutubeId
+      ? buildWatchUrl(artist.youtubeId)
+      : `https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`
+  ), [artist.youtubeId, artist.youtubeSearch, hasValidYoutubeId]);
+  const thumbnailUrl = useMemo(() => (
+    hasValidYoutubeId ? `https://i.ytimg.com/vi/${artist.youtubeId}/hqdefault.jpg` : ""
+  ), [artist.youtubeId, hasValidYoutubeId]);
 
   useEffect(() => {
     let mounted = true;
@@ -341,7 +346,7 @@ export default function App() {
                     cursor: "pointer",
                     padding: "36px 24px",
                     color: "#ffffff",
-                    backgroundImage: `linear-gradient(180deg, rgba(24, 59, 77, 0.18), rgba(24, 59, 77, 0.76)), url(https://i.ytimg.com/vi/${artist.youtubeId}/hqdefault.jpg)`,
+                    backgroundImage: `linear-gradient(180deg, rgba(24, 59, 77, 0.18), rgba(24, 59, 77, 0.76)), url(${thumbnailUrl})`,
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                     display: "grid",
