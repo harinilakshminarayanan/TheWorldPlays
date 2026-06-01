@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { dedupeArtists, isValidYoutubeId } from "../shared/artist.js";
 
-// ─── Seed list (always present, never removed) ───────────────────────────────
 const SEED_ARTISTS = [
   { name: "Shovkat Mirzayev", country: "Uzbekistan", flag: "🇺🇿", genre: "Shashmaqam / Classical Central Asian", youtubeId: "cq6pNzmNjrA", youtubeSearch: "Shovkat Mirzayev Uzbek music" },
   { name: "Tinariwen", country: "Mali / Sahara", flag: "🇲🇱", genre: "Tuareg Desert Blues", youtubeId: "5LkMtmVBDlg", youtubeSearch: "Tinariwen Amassakoul" },
@@ -51,39 +51,62 @@ const STORAGE_KEY = "twp_artists_v1";
 const EXPAND_THRESHOLD = 150;
 const EXPAND_BATCH = 25;
 
-// ─── Persistence helpers ──────────────────────────────────────────────────────
+const palette = {
+  deepBlue: "#22577a",
+  teal: "#38a3a5",
+  mint: "#57cc99",
+  lightMint: "#80ed99",
+  paleMint: "#c7f9cc",
+  white: "#f8fffb",
+};
+
 function loadStoredArtists() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? dedupeArtists(parsed) : [];
+  } catch {
+    return [];
+  }
 }
 
 function saveStoredArtists(artists) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(artists)); } catch {}
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dedupeArtists(artists)));
+  } catch {
+    // Ignore storage quota/errors to avoid breaking render
+  }
 }
 
 function getAllArtists() {
   const stored = loadStoredArtists();
-  const seedNames = new Set(SEED_ARTISTS.map((a) => a.name.toLowerCase()));
-  const extraStored = stored.filter((a) => !seedNames.has(a.name.toLowerCase()));
-  return [...SEED_ARTISTS, ...extraStored];
+  return dedupeArtists([...SEED_ARTISTS, ...stored]);
 }
 
-// ─── Daily artist (deterministic by date) ────────────────────────────────────
 function getDailyArtist(artists) {
+  const safeArtists = Array.isArray(artists) && artists.length > 0 ? artists : SEED_ARTISTS;
   const now = new Date();
   const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-  return artists[seed % artists.length];
+  return safeArtists[seed % safeArtists.length];
 }
 
 function formatDate() {
   return new Date().toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 }
 
-// ─── API calls ────────────────────────────────────────────────────────────────
+function buildFallbackStory(artist) {
+  return [
+    `${artist.name} from ${artist.country} brings a deeply rooted ${artist.genre.toLowerCase()} voice that feels both local and timeless. Their music carries the textures of place, language, and memory in a way that invites slow listening.`,
+    `Across recordings and live sessions, ${artist.name} has shaped a distinct artistic path by balancing tradition with personal expression. The result is music that feels handcrafted, intimate, and emotionally direct.`,
+    `Today’s discovery is a reminder that incredible music scenes thrive far beyond the global mainstream. If this artist is new to you, you have just opened a door to a much larger world of sound.`,
+  ].join("\n\n");
+}
+
 async function fetchArtistStory(artist) {
   try {
     const res = await fetch("/api/story", {
@@ -91,9 +114,18 @@ async function fetchArtistStory(artist) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: artist.name, country: artist.country, genre: artist.genre }),
     });
-    const data = await res.json();
-    return data.story || "Story unavailable.";
-  } catch { return "Story unavailable."; }
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return buildFallbackStory(artist);
+    }
+
+    return typeof data.story === "string" && data.story.trim()
+      ? data.story
+      : buildFallbackStory(artist);
+  } catch {
+    return buildFallbackStory(artist);
+  }
 }
 
 async function expandArtistList(existingNames) {
@@ -103,230 +135,175 @@ async function expandArtistList(existingNames) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ existingNames, count: EXPAND_BATCH }),
     });
-    const data = await res.json();
-    return data.artists || [];
-  } catch { return []; }
+
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => ({}));
+    if (!Array.isArray(data.artists)) return [];
+    return dedupeArtists(data.artists);
+  } catch {
+    return [];
+  }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function App() {
   const [allArtists, setAllArtists] = useState(() => getAllArtists());
-  const [artist, setArtist] = useState(() => getDailyArtist(getAllArtists()));
   const [story, setStory] = useState("");
   const [loadingStory, setLoadingStory] = useState(true);
-  const [revealed, setRevealed] = useState(false);
   const [expanding, setExpanding] = useState(false);
   const [newlyAdded, setNewlyAdded] = useState(0);
   const expandingRef = useRef(false);
 
-  useEffect(() => { setTimeout(() => setRevealed(true), 100); }, []);
+  const artist = useMemo(() => getDailyArtist(allArtists), [allArtists]);
 
   useEffect(() => {
+    let mounted = true;
     setLoadingStory(true);
-    fetchArtistStory(artist).then((s) => {
-      setStory(s);
+
+    fetchArtistStory(artist).then((nextStory) => {
+      if (!mounted) return;
+      setStory(nextStory);
+    }).catch(() => {
+      if (!mounted) return;
+      setStory(buildFallbackStory(artist));
+    }).finally(() => {
+      if (!mounted) return;
       setLoadingStory(false);
     });
-  }, [artist.name]);
 
-  // Background expansion on load
+    return () => {
+      mounted = false;
+    };
+  }, [artist]);
+
   useEffect(() => {
     const current = getAllArtists();
-    if (current.length < EXPAND_THRESHOLD && !expandingRef.current) {
-      expandingRef.current = true;
-      setExpanding(true);
-      expandArtistList(current.map((a) => a.name)).then((newOnes) => {
-        if (newOnes.length > 0) {
-          const stored = loadStoredArtists();
-          const existingNames = new Set(stored.map((a) => a.name.toLowerCase()));
-          const seedNames = new Set(SEED_ARTISTS.map((a) => a.name.toLowerCase()));
-          const toAdd = newOnes.filter(
-            (a) => a.name && !existingNames.has(a.name.toLowerCase()) && !seedNames.has(a.name.toLowerCase())
-          );
-          if (toAdd.length > 0) {
-            const updated = [...stored, ...toAdd];
-            saveStoredArtists(updated);
-            const newFull = getAllArtists();
-            setAllArtists(newFull);
-            setNewlyAdded(toAdd.length);
-            setTimeout(() => setNewlyAdded(0), 5000);
-          }
-        }
-        setExpanding(false);
-        expandingRef.current = false;
-      });
-    }
+    if (current.length >= EXPAND_THRESHOLD || expandingRef.current) return;
+
+    expandingRef.current = true;
+    setExpanding(true);
+
+    expandArtistList(current.map((a) => a.name)).then((newOnes) => {
+      const seedAndCurrentNames = new Set(current.map((a) => a.name.toLowerCase()));
+      const toAdd = newOnes.filter((a) => !seedAndCurrentNames.has(a.name.toLowerCase()));
+
+      if (toAdd.length > 0) {
+        const stored = loadStoredArtists();
+        const updated = dedupeArtists([...stored, ...toAdd]);
+        saveStoredArtists(updated);
+
+        const refreshed = getAllArtists();
+        setAllArtists(refreshed);
+        setNewlyAdded(toAdd.length);
+        setTimeout(() => setNewlyAdded(0), 5000);
+      }
+
+    }).catch(() => {
+      // Ignore network/API errors; the next page load can retry expansion.
+    }).finally(() => {
+      setExpanding(false);
+      expandingRef.current = false;
+    });
   }, []);
 
-  const listSize = allArtists.length;
-  const countries = [...new Set(allArtists.map((a) => a.country))].length;
+  const hasValidYoutubeId = isValidYoutubeId(artist.youtubeId);
+  const countries = useMemo(() => new Set(allArtists.map((a) => a.country)).size, [allArtists]);
 
   return (
     <div style={{
-      minHeight: "100vh", background: "#0a0805",
-      fontFamily: "'Georgia', 'Times New Roman', serif",
-      color: "#e8dcc8", position: "relative", overflow: "hidden",
+      minHeight: "100vh",
+      background: `linear-gradient(180deg, ${palette.paleMint} 0%, #e9fff1 100%)`,
+      color: palette.deepBlue,
+      fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+      padding: "32px 16px 56px",
     }}>
-      {/* Grain overlay */}
-      <div style={{
-        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 1,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")`,
-        opacity: 0.4,
-      }} />
-      <div style={{
-        position: "fixed", top: "20%", left: "50%", transform: "translateX(-50%)",
-        width: "600px", height: "600px",
-        background: "radial-gradient(ellipse, rgba(180,120,40,0.12) 0%, transparent 70%)",
-        pointerEvents: "none", zIndex: 0,
-      }} />
-
-      <div style={{ position: "relative", zIndex: 2, maxWidth: "780px", margin: "0 auto", padding: "0 24px 80px" }}>
-
-        {/* Header */}
-        <header style={{
-          textAlign: "center", paddingTop: "52px", paddingBottom: "40px",
-          opacity: revealed ? 1 : 0, transform: revealed ? "translateY(0)" : "translateY(-20px)",
-          transition: "all 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}>
-          <div style={{ fontSize: "10px", letterSpacing: "6px", textTransform: "uppercase", color: "#c49a3c", marginBottom: "12px" }}>
-            ◈ &nbsp; Daily Discovery &nbsp; ◈
-          </div>
-          <h1 style={{
-            fontSize: "clamp(36px, 7vw, 64px)", fontWeight: "normal", letterSpacing: "-1px",
-            margin: 0, lineHeight: 1, color: "#f0e4c8",
-            fontFamily: "'Palatino Linotype', 'Palatino', 'Book Antiqua', Georgia, serif",
-          }}>The World Plays</h1>
-          <div style={{ width: "60px", height: "1px", background: "linear-gradient(to right, transparent, #c49a3c, transparent)", margin: "20px auto" }} />
-          <p style={{ fontSize: "13px", color: "#8a7a60", margin: 0, letterSpacing: "1px" }}>{formatDate()}</p>
+      <main style={{ maxWidth: "760px", margin: "0 auto" }}>
+        <header style={{ textAlign: "center", marginBottom: "24px" }}>
+          <p style={{ margin: "0 0 8px", fontSize: "12px", letterSpacing: "0.08em", color: palette.teal, textTransform: "uppercase" }}>
+            Daily discovery
+          </p>
+          <h1 style={{ margin: 0, fontSize: "clamp(32px, 6vw, 48px)", lineHeight: 1.1 }}>The World Plays</h1>
+          <p style={{ margin: "10px 0 0", color: palette.teal }}>{formatDate()}</p>
         </header>
 
-        {/* Artist Card */}
-        <div style={{
-          opacity: revealed ? 1 : 0, transform: revealed ? "translateY(0)" : "translateY(30px)",
-          transition: "all 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s",
+        <section style={{
+          background: palette.white,
+          border: `1px solid ${palette.lightMint}`,
+          borderRadius: "18px",
+          boxShadow: "0 16px 40px rgba(34, 87, 122, 0.08)",
+          padding: "24px",
         }}>
-          <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginBottom: "28px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "22px", lineHeight: 1 }}>{artist.flag}</span>
-            <span style={{ fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", color: "#c49a3c", border: "1px solid rgba(196,154,60,0.3)", padding: "5px 14px" }}>{artist.country}</span>
-            <span style={{ fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", color: "#6a5a40", border: "1px solid rgba(106,90,64,0.3)", padding: "5px 14px" }}>{artist.genre}</span>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "16px" }}>
+            <span style={{ fontSize: "24px" }}>{artist.flag}</span>
+            <span style={{ fontSize: "12px", color: palette.teal, fontWeight: 600 }}>{artist.country}</span>
+            <span style={{ fontSize: "12px", color: palette.deepBlue, background: "#ecfff2", padding: "4px 10px", borderRadius: "999px" }}>{artist.genre}</span>
           </div>
 
-          <h2 style={{
-            textAlign: "center", fontSize: "clamp(28px, 6vw, 52px)", fontWeight: "normal",
-            fontFamily: "'Palatino Linotype', 'Palatino', Georgia, serif",
-            margin: "0 0 40px", color: "#f5ead0", lineHeight: 1.1,
-          }}>{artist.name}</h2>
+          <h2 style={{ textAlign: "center", margin: "0 0 20px", fontSize: "clamp(24px, 5vw, 36px)", lineHeight: 1.2 }}>{artist.name}</h2>
 
-          {/* YouTube */}
-          <div style={{
-            position: "relative", marginBottom: "48px", borderRadius: "2px", overflow: "hidden",
-            boxShadow: "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(196,154,60,0.2)",
-            background: "#0f0c08",
-          }}>
-            <div style={{ paddingBottom: "56.25%", position: "relative" }}>
-              <iframe
-                src={`https://www.youtube.com/embed/${artist.youtubeId}?rel=0&modestbranding=1&color=white`}
-                title={`${artist.name} music`}
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-            {["topLeft","topRight","bottomLeft","bottomRight"].map((c) => (
-              <div key={c} style={{
-                position: "absolute",
-                top: c.includes("top") ? 0 : "auto", bottom: c.includes("bottom") ? 0 : "auto",
-                left: c.includes("Left") ? 0 : "auto", right: c.includes("Right") ? 0 : "auto",
-                width: "20px", height: "20px",
-                borderTop: c.includes("top") ? "1px solid rgba(196,154,60,0.5)" : "none",
-                borderBottom: c.includes("bottom") ? "1px solid rgba(196,154,60,0.5)" : "none",
-                borderLeft: c.includes("Left") ? "1px solid rgba(196,154,60,0.5)" : "none",
-                borderRight: c.includes("Right") ? "1px solid rgba(196,154,60,0.5)" : "none",
-              }} />
-            ))}
-          </div>
-
-          {/* Divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "36px" }}>
-            <div style={{ flex: 1, height: "1px", background: "linear-gradient(to right, transparent, rgba(196,154,60,0.3))" }} />
-            <span style={{ fontSize: "12px", color: "#6a5a40", letterSpacing: "4px" }}>◆</span>
-            <div style={{ flex: 1, height: "1px", background: "linear-gradient(to left, transparent, rgba(196,154,60,0.3))" }} />
-          </div>
-
-          {/* Story */}
-          <div style={{ position: "relative" }}>
-            <div style={{ position: "absolute", top: 0, left: "-24px", width: "2px", height: "100%", background: "linear-gradient(to bottom, rgba(196,154,60,0.4), transparent)" }} />
-            {loadingStory ? (
-              <div style={{ padding: "32px 0", textAlign: "center" }}>
-                <div style={{
-                  display: "inline-block", width: "40px", height: "40px",
-                  border: "1px solid rgba(196,154,60,0.3)", borderTopColor: "#c49a3c",
-                  borderRadius: "50%", animation: "spin 1.2s linear infinite",
-                }} />
-                <p style={{ color: "#6a5a40", fontSize: "12px", letterSpacing: "2px", marginTop: "16px" }}>CONJURING THE STORY…</p>
+          <div style={{ borderRadius: "12px", overflow: "hidden", border: `1px solid ${palette.lightMint}`, marginBottom: "20px", background: "#dfffe9" }}>
+            {hasValidYoutubeId ? (
+              <div style={{ position: "relative", paddingBottom: "56.25%" }}>
+                <iframe
+                  src={`https://www.youtube.com/embed/${artist.youtubeId}?rel=0&modestbranding=1`}
+                  title={`${artist.name} music`}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
               </div>
             ) : (
-              story.split("\n\n").filter(Boolean).map((para, i) => (
-                <p key={i} style={{
-                  fontSize: "clamp(15px, 2.5vw, 17px)", lineHeight: 1.85,
-                  color: i === 0 ? "#d4c4a0" : "#a89878",
-                  margin: "0 0 24px", fontStyle: i === 0 ? "italic" : "normal",
-                }}>
-                  {i === 0 && (
-                    <span style={{
-                      float: "left", fontSize: "clamp(48px, 8vw, 72px)", lineHeight: 0.8,
-                      marginRight: "8px", marginTop: "8px", color: "#c49a3c",
-                      fontFamily: "'Palatino Linotype', Georgia, serif",
-                    }}>{para[0]}</span>
-                  )}
-                  {i === 0 ? para.slice(1) : para}
-                </p>
-              ))
+              <div style={{ padding: "32px 20px", textAlign: "center" }}>
+                <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Video preview unavailable</p>
+                <p style={{ margin: 0, color: palette.teal }}>Open YouTube search for this artist instead.</p>
+              </div>
             )}
           </div>
 
-          <div style={{ marginTop: "48px", textAlign: "center" }}>
+          <div style={{ textAlign: "center", marginBottom: "24px" }}>
             <a
               href={`https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`}
-              target="_blank" rel="noopener noreferrer"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
-                display: "inline-block", fontSize: "10px", letterSpacing: "4px", textTransform: "uppercase",
-                color: "#c49a3c", textDecoration: "none",
-                border: "1px solid rgba(196,154,60,0.3)", padding: "12px 28px",
-                transition: "all 0.3s ease",
+                display: "inline-block",
+                textDecoration: "none",
+                color: "#ffffff",
+                background: palette.teal,
+                borderRadius: "999px",
+                padding: "10px 18px",
+                fontWeight: 600,
+                fontSize: "14px",
               }}
-              onMouseEnter={e => { e.target.style.background = "rgba(196,154,60,0.1)"; e.target.style.borderColor = "rgba(196,154,60,0.6)"; }}
-              onMouseLeave={e => { e.target.style.background = "transparent"; e.target.style.borderColor = "rgba(196,154,60,0.3)"; }}
             >
-              Explore More on YouTube →
+              Explore more on YouTube
             </a>
           </div>
-        </div>
 
-        {/* Footer */}
-        <footer style={{ textAlign: "center", marginTop: "80px", paddingTop: "32px", borderTop: "1px solid rgba(196,154,60,0.1)" }}>
-          <p style={{ fontSize: "11px", color: "#4a3e2c", letterSpacing: "2px", margin: 0 }}>
-            A NEW ARTIST FROM SOMEWHERE UNEXPECTED — EVERY DAY
-          </p>
-          <p style={{ fontSize: "10px", color: "#3a2e1c", margin: "8px 0 0", letterSpacing: "1px" }}>
-            {listSize} artists · {countries} countries · 1 per day
-            {expanding && <span style={{ color: "#6a5a40", marginLeft: "10px" }}>· ✦ discovering more…</span>}
+          <section>
+            {loadingStory ? (
+              <p style={{ margin: 0, textAlign: "center", color: palette.teal }}>Generating story…</p>
+            ) : (
+              story.split("\n\n").filter(Boolean).map((paragraph, index) => (
+                <p key={index} style={{ margin: "0 0 14px", lineHeight: 1.7, color: index === 0 ? palette.deepBlue : "#356a70" }}>
+                  {paragraph}
+                </p>
+              ))
+            )}
+          </section>
+        </section>
+
+        <footer style={{ marginTop: "18px", textAlign: "center", color: "#2f7f84" }}>
+          <p style={{ margin: 0, fontSize: "13px" }}>
+            {allArtists.length} artists · {countries} countries · 1 per day
+            {expanding && <span> · discovering more…</span>}
           </p>
           {newlyAdded > 0 && (
-            <p style={{ fontSize: "10px", color: "#c49a3c", margin: "6px 0 0", letterSpacing: "1px", animation: "fadeIn 0.5s ease" }}>
-              ✦ {newlyAdded} new artists just added to the rotation
+            <p style={{ margin: "8px 0 0", fontSize: "12px", color: palette.mint }}>
+              +{newlyAdded} new artists added to your local rotation
             </p>
           )}
         </footer>
-      </div>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        * { box-sizing: border-box; }
-        ::selection { background: rgba(196,154,60,0.3); }
-        body { margin: 0; }
-      `}</style>
+      </main>
     </div>
   );
 }

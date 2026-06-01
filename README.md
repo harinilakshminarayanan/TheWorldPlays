@@ -61,11 +61,13 @@ the-world-plays/
 ├── vite.config.js      ← Build config
 ├── package.json        ← Dependencies
 ├── vercel.json         ← Deployment config
+├── .gitignore          ← Ignore build/dependency artifacts
 ├── src/
 │   ├── main.jsx        ← React entry point
-│   └── App.jsx         ← Main app (artist list + UI)
+│   └── App.jsx         ← Main app (artist list + UI + localStorage merge)
 └── api/
-    └── story.js        ← Serverless function (keeps API key secret)
+    ├── story.js        ← Serverless function (story generation + fallback)
+    └── expand.js       ← Serverless function (artist expansion + validation)
 ```
 
 ## Auto-expanding artist list
@@ -89,7 +91,7 @@ The algorithm uses today's date as a number (e.g. `20260424`) and takes the rema
 
 ## Adding more artists
 
-Open `src/App.jsx` and add entries to the `ARTISTS` array at the top:
+Open `src/App.jsx` and add entries to the `SEED_ARTISTS` array at the top:
 ```js
 { 
   name: "Artist Name", 
@@ -112,6 +114,11 @@ Then open [http://localhost:5173](http://localhost:5173)
 You'll need a `.env` file for local development:
 ```
 ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+If you want to run frontend and Vercel serverless APIs together locally, use:
+```bash
+npx vercel dev
 ```
 
 ---
