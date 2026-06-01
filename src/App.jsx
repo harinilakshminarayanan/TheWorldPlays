@@ -87,9 +87,15 @@ function getAllArtists() {
 
 function getDailyArtist(artists) {
   const safeArtists = Array.isArray(artists) && artists.length > 0 ? artists : SEED_ARTISTS;
+  const playableArtists = safeArtists.filter((artist) => isValidYoutubeId(artist?.youtubeId));
+  const candidates = playableArtists.length > 0
+    ? playableArtists
+    : SEED_ARTISTS.filter((artist) => isValidYoutubeId(artist?.youtubeId));
+
+  if (candidates.length === 0) return SEED_ARTISTS[0];
   const now = new Date();
   const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-  return safeArtists[seed % safeArtists.length];
+  return candidates[seed % candidates.length];
 }
 
 function formatDate() {
@@ -153,7 +159,7 @@ function buildWatchUrl(youtubeId) {
 }
 
 function buildEmbedUrl(youtubeId) {
-  return `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
+  return `https://www.youtube.com/embed/${youtubeId}?playsinline=1&rel=0`;
 }
 
 async function fetchArtistDetails(artist) {
