@@ -121,11 +121,22 @@ function derivePieceTitle(artist) {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!stripped || stripped.toLowerCase() === artist.country.toLowerCase()) {
+  const countryTokens = artist.country.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const genreTokens = artist.genre.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const remainingTokens = stripped.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+    .filter((token) => !countryTokens.includes(token));
+
+  if (remainingTokens.length === 0) {
     return `Featured ${artist.genre.split("/")[0].trim()} performance`;
   }
 
-  return toTitleCase(stripped);
+  const overlapsGenreOnly = remainingTokens.length <= 2 && remainingTokens.every((token) => genreTokens.includes(token));
+
+  if (overlapsGenreOnly) {
+    return `Featured ${artist.genre.split("/")[0].trim()} performance`;
+  }
+
+  return toTitleCase(remainingTokens.join(" "));
 }
 
 function buildFallbackDetails(artist) {
@@ -397,6 +408,10 @@ export default function App() {
               Explore more on YouTube
             </a>
           </div>
+
+          <p style={{ margin: "0 0 24px", textAlign: "center", color: "#5c7a80", fontSize: "13px" }}>
+            If the embedded player is blocked by your browser or by YouTube, use the direct watch button above.
+          </p>
 
           <section style={{ display: "grid", gap: "18px", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
             <article style={{ background: "#fff9e8", border: `1px solid ${palette.border}`, borderRadius: "22px", padding: "20px" }}>
