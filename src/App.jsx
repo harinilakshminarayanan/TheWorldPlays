@@ -339,6 +339,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setPlayerLoaded(true)}
+                  aria-label={`Play ${pieceTitle} in the embedded YouTube player`}
                   style={{
                     width: "100%",
                     minHeight: "320px",
