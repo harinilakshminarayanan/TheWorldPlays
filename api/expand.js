@@ -62,7 +62,9 @@ Each object must have exactly these fields:
   "flag": "🏳️ (correct country flag emoji)",
   "genre": "Genre / Style description",
   "youtubeId": "REAL_VIDEO_ID_11_CHARS",
-  "youtubeSearch": "search terms to find them on YouTube"
+  "youtubeSearch": "search terms to find them on YouTube",
+  "pieceTitle": "title of the featured recording if known, otherwise a short performance label",
+  "pieceDescription": "one short sentence about what makes this recording or performance interesting"
 }`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {

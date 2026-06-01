@@ -3,10 +3,10 @@ import { dedupeArtists, isValidYoutubeId } from "../shared/artist.js";
 
 const SEED_ARTISTS = [
   { name: "Shovkat Mirzayev", country: "Uzbekistan", flag: "🇺🇿", genre: "Shashmaqam / Classical Central Asian", youtubeId: "cq6pNzmNjrA", youtubeSearch: "Shovkat Mirzayev Uzbek music" },
-  { name: "Tinariwen", country: "Mali / Sahara", flag: "🇲🇱", genre: "Tuareg Desert Blues", youtubeId: "5LkMtmVBDlg", youtubeSearch: "Tinariwen Amassakoul" },
+  { name: "Tinariwen", country: "Mali / Sahara", flag: "🇲🇱", genre: "Tuareg Desert Blues", youtubeId: "5LkMtmVBDlg", youtubeSearch: "Tinariwen Amassakoul", pieceTitle: "Amassakoul" },
   { name: "Huun-Huur-Tu", country: "Tuva, Russia", flag: "🇷🇺", genre: "Tuvan Throat Singing", youtubeId: "R2ovoRyv4mo", youtubeSearch: "Huun Huur Tu throat singing" },
   { name: "Byambasuren Sharav", country: "Mongolia", flag: "🇲🇳", genre: "Urtiin Duu / Long Song", youtubeId: "d7VkHdVbBhU", youtubeSearch: "Mongolian long song urtiin duu" },
-  { name: "Susheela Raman", country: "Tamil Nadu / UK", flag: "🇮🇳", genre: "Tamil Folk Fusion", youtubeId: "3DxFAi4HGWA", youtubeSearch: "Susheela Raman Salt Rain" },
+  { name: "Susheela Raman", country: "Tamil Nadu / UK", flag: "🇮🇳", genre: "Tamil Folk Fusion", youtubeId: "3DxFAi4HGWA", youtubeSearch: "Susheela Raman Salt Rain", pieceTitle: "Salt Rain" },
   { name: "Trio Mandili", country: "Georgia", flag: "🇬🇪", genre: "Georgian Polyphonic Folk", youtubeId: "rB2RzNgVMAs", youtubeSearch: "Trio Mandili Georgian folk" },
   { name: "Bombino", country: "Niger", flag: "🇳🇪", genre: "Tuareg Guitar / Agadez Rock", youtubeId: "6lMvhCB0zAA", youtubeSearch: "Bombino Niger Tuareg guitar" },
   { name: "Vieux Farka Touré", country: "Mali", flag: "🇲🇱", genre: "Saharan Blues", youtubeId: "kqMSrLOcUkc", youtubeSearch: "Vieux Farka Touré blues" },
@@ -28,7 +28,7 @@ const SEED_ARTISTS = [
   { name: "Trad.Attack!", country: "Estonia", flag: "🇪🇪", genre: "Estonian Folk / Electronic", youtubeId: "bOAHoJxkqG4", youtubeSearch: "Trad.Attack Estonia folk electronic" },
   { name: "Tamikrest", country: "Mali / Algeria", flag: "🇲🇱", genre: "Tuareg Rock", youtubeId: "B4gD_LvKD1c", youtubeSearch: "Tamikrest Tuareg rock" },
   { name: "Susana Baca", country: "Peru", flag: "🇵🇪", genre: "Afro-Peruvian / Festejo", youtubeId: "dGTwvHIf3-k", youtubeSearch: "Susana Baca Afro Peruvian" },
-  { name: "Emel Mathlouthi", country: "Tunisia", flag: "🇹🇳", genre: "Arab Alternative / Protest Folk", youtubeId: "hFQlFJCTxHo", youtubeSearch: "Emel Mathlouthi Kelmti Horra" },
+  { name: "Emel Mathlouthi", country: "Tunisia", flag: "🇹🇳", genre: "Arab Alternative / Protest Folk", youtubeId: "hFQlFJCTxHo", youtubeSearch: "Emel Mathlouthi Kelmti Horra", pieceTitle: "Kelmti Horra" },
   { name: "Altın Gün", country: "Turkey / Netherlands", flag: "🇹🇷", genre: "Anatolian Psych Rock", youtubeId: "c5XuiJbqX0Y", youtubeSearch: "Altın Gün Anatolian psychedelic" },
   { name: "Noura Mint Seymali", country: "Mauritania", flag: "🇲🇷", genre: "Moorish Griot / Desert Blues", youtubeId: "6XUPB7lFCGg", youtubeSearch: "Noura Mint Seymali Mauritania" },
   { name: "Mahsa Vahdat", country: "Iran", flag: "🇮🇷", genre: "Persian Classical Voice", youtubeId: "DY25l0GmJLo", youtubeSearch: "Mahsa Vahdat Persian classical" },
@@ -52,12 +52,14 @@ const EXPAND_THRESHOLD = 150;
 const EXPAND_BATCH = 25;
 
 const palette = {
-  deepBlue: "#22577a",
-  teal: "#38a3a5",
-  mint: "#57cc99",
-  lightMint: "#80ed99",
-  paleMint: "#c7f9cc",
-  white: "#f8fffb",
+  ink: "#183b4d",
+  teal: "#2b7a78",
+  seaGlass: "#7ad8c6",
+  butter: "#fff6cf",
+  coral: "#ffb38a",
+  mist: "#f4fbff",
+  white: "#ffffff",
+  border: "rgba(24, 59, 77, 0.12)",
 };
 
 function loadStoredArtists() {
@@ -99,32 +101,88 @@ function formatDate() {
   });
 }
 
-function buildFallbackStory(artist) {
-  return [
-    `${artist.name} from ${artist.country} brings a deeply rooted ${artist.genre.toLowerCase()} voice that feels both local and timeless. Their music carries the textures of place, language, and memory in a way that invites slow listening.`,
-    `Across recordings and live sessions, ${artist.name} has shaped a distinct artistic path by balancing tradition with personal expression. The result is music that feels handcrafted, intimate, and emotionally direct.`,
-    `Today’s discovery is a reminder that incredible music scenes thrive far beyond the global mainstream. If this artist is new to you, you have just opened a door to a much larger world of sound.`,
-  ].join("\n\n");
+function toTitleCase(value) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
-async function fetchArtistStory(artist) {
+function derivePieceTitle(artist) {
+  if (artist.pieceTitle) return artist.pieceTitle;
+
+  const search = typeof artist.youtubeSearch === "string" ? artist.youtubeSearch.trim() : "";
+  if (!search) return "Featured performance";
+
+  const normalizedArtistName = artist.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const stripped = search
+    .replace(new RegExp(normalizedArtistName, "ig"), "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const countryTokens = artist.country.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const genreTokens = artist.genre.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const remainingTokens = stripped.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+    .filter((token) => !countryTokens.includes(token));
+
+  if (remainingTokens.length === 0) {
+    return `Featured ${artist.genre.split("/")[0].trim()} performance`;
+  }
+
+  const overlapsGenreOnly = remainingTokens.length <= 2 && remainingTokens.every((token) => genreTokens.includes(token));
+
+  if (overlapsGenreOnly) {
+    return `Featured ${artist.genre.split("/")[0].trim()} performance`;
+  }
+
+  return toTitleCase(remainingTokens.join(" "));
+}
+
+function buildFallbackDetails(artist) {
+  const pieceTitle = derivePieceTitle(artist);
+
+  return {
+    bio: `${artist.name} is a ${artist.genre.toLowerCase()} artist from ${artist.country} whose work carries the atmosphere of place, memory, and lived tradition. Their performances feel both rooted and immediate, drawing listeners into a musical language shaped by local history while still sounding vividly personal. What makes ${artist.name} exciting is the way technique and emotion stay tightly connected: every phrase feels inhabited rather than polished for distance. For listeners discovering them for the first time, this is not just a new name but a new musical map, one that opens onto scenes, stories, and cultural textures rarely centered in mainstream listening.`,
+    pieceNote: artist.pieceDescription || `${pieceTitle} gives you a direct entry point into ${artist.name}'s world. Listen for the rhythmic feel, the grain of the voice or lead instrument, and the way ${artist.genre.toLowerCase()} carries both movement and atmosphere.`,
+  };
+}
+
+function buildWatchUrl(youtubeId) {
+  return `https://www.youtube.com/watch?v=${youtubeId}`;
+}
+
+function buildEmbedUrl(youtubeId) {
+  return `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
+}
+
+async function fetchArtistDetails(artist) {
   try {
     const res = await fetch("/api/story", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: artist.name, country: artist.country, genre: artist.genre }),
+      body: JSON.stringify({
+        name: artist.name,
+        country: artist.country,
+        genre: artist.genre,
+        pieceTitle: derivePieceTitle(artist),
+        youtubeSearch: artist.youtubeSearch,
+      }),
     });
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return buildFallbackStory(artist);
+      return buildFallbackDetails(artist);
     }
 
-    return typeof data.story === "string" && data.story.trim()
-      ? data.story
-      : buildFallbackStory(artist);
+    const fallback = buildFallbackDetails(artist);
+
+    return {
+      bio: typeof data.bio === "string" && data.bio.trim() ? data.bio.trim() : fallback.bio,
+      pieceNote: typeof data.pieceNote === "string" && data.pieceNote.trim() ? data.pieceNote.trim() : fallback.pieceNote,
+    };
   } catch {
-    return buildFallbackStory(artist);
+    return buildFallbackDetails(artist);
   }
 }
 
@@ -147,27 +205,40 @@ async function expandArtistList(existingNames) {
 
 export default function App() {
   const [allArtists, setAllArtists] = useState(() => getAllArtists());
-  const [story, setStory] = useState("");
-  const [loadingStory, setLoadingStory] = useState(true);
+  const [details, setDetails] = useState(() => buildFallbackDetails(getDailyArtist(getAllArtists())));
+  const [loadingDetails, setLoadingDetails] = useState(true);
   const [expanding, setExpanding] = useState(false);
   const [newlyAdded, setNewlyAdded] = useState(0);
+  const [playerLoaded, setPlayerLoaded] = useState(false);
   const expandingRef = useRef(false);
 
   const artist = useMemo(() => getDailyArtist(allArtists), [allArtists]);
+  const pieceTitle = useMemo(() => derivePieceTitle(artist), [artist]);
+  const hasValidYoutubeId = isValidYoutubeId(artist.youtubeId);
+  const countries = useMemo(() => new Set(allArtists.map((a) => a.country)).size, [allArtists]);
+  const watchUrl = useMemo(() => (
+    hasValidYoutubeId
+      ? buildWatchUrl(artist.youtubeId)
+      : `https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`
+  ), [artist.youtubeId, artist.youtubeSearch, hasValidYoutubeId]);
+  const thumbnailUrl = useMemo(() => (
+    hasValidYoutubeId ? `https://i.ytimg.com/vi/${artist.youtubeId}/hqdefault.jpg` : ""
+  ), [artist.youtubeId, hasValidYoutubeId]);
 
   useEffect(() => {
     let mounted = true;
-    setLoadingStory(true);
+    setLoadingDetails(true);
+    setPlayerLoaded(false);
 
-    fetchArtistStory(artist).then((nextStory) => {
+    fetchArtistDetails(artist).then((nextDetails) => {
       if (!mounted) return;
-      setStory(nextStory);
+      setDetails(nextDetails);
     }).catch(() => {
       if (!mounted) return;
-      setStory(buildFallbackStory(artist));
+      setDetails(buildFallbackDetails(artist));
     }).finally(() => {
       if (!mounted) return;
-      setLoadingStory(false);
+      setLoadingDetails(false);
     });
 
     return () => {
@@ -205,63 +276,109 @@ export default function App() {
     });
   }, []);
 
-  const hasValidYoutubeId = isValidYoutubeId(artist.youtubeId);
-  const countries = useMemo(() => new Set(allArtists.map((a) => a.country)).size, [allArtists]);
-
   return (
     <div style={{
       minHeight: "100vh",
-      background: `linear-gradient(180deg, ${palette.paleMint} 0%, #e9fff1 100%)`,
-      color: palette.deepBlue,
+      backgroundColor: palette.mist,
+      backgroundImage: [
+        "radial-gradient(circle at 20px 20px, rgba(24, 59, 77, 0.08) 1.6px, transparent 0)",
+        "radial-gradient(circle at top left, rgba(122, 216, 198, 0.32), transparent 34%)",
+        "radial-gradient(circle at bottom right, rgba(255, 179, 138, 0.22), transparent 28%)",
+        "linear-gradient(180deg, #fffef7 0%, #f4fbff 55%, #eefaf5 100%)",
+      ].join(", "),
+      backgroundSize: "24px 24px, auto, auto, auto",
+      color: palette.ink,
       fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
       padding: "32px 16px 56px",
     }}>
-      <main style={{ maxWidth: "760px", margin: "0 auto" }}>
+      <main style={{ maxWidth: "960px", margin: "0 auto" }}>
         <header style={{ textAlign: "center", marginBottom: "24px" }}>
-          <p style={{ margin: "0 0 8px", fontSize: "12px", letterSpacing: "0.08em", color: palette.teal, textTransform: "uppercase" }}>
+          <p style={{ margin: "0 0 8px", fontSize: "12px", letterSpacing: "0.12em", color: palette.teal, textTransform: "uppercase", fontWeight: 700 }}>
             Daily discovery
           </p>
-          <h1 style={{ margin: 0, fontSize: "clamp(32px, 6vw, 48px)", lineHeight: 1.1 }}>The World Plays</h1>
+          <h1 style={{ margin: 0, fontSize: "clamp(32px, 6vw, 52px)", lineHeight: 1.1 }}>The World Plays</h1>
+          <p style={{ margin: "10px auto 0", color: palette.teal, maxWidth: "640px", lineHeight: 1.6 }}>
+            One artist, one featured recording, and a quick way into a corner of the world you may not have heard before.
+          </p>
           <p style={{ margin: "10px 0 0", color: palette.teal }}>{formatDate()}</p>
         </header>
 
         <section style={{
-          background: palette.white,
-          border: `1px solid ${palette.lightMint}`,
-          borderRadius: "18px",
-          boxShadow: "0 16px 40px rgba(34, 87, 122, 0.08)",
-          padding: "24px",
+          background: "rgba(255, 255, 255, 0.86)",
+          border: `1px solid ${palette.border}`,
+          borderRadius: "28px",
+          boxShadow: "0 20px 50px rgba(24, 59, 77, 0.10)",
+          padding: "28px",
+          backdropFilter: "blur(10px)",
         }}>
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "16px" }}>
             <span style={{ fontSize: "24px" }}>{artist.flag}</span>
-            <span style={{ fontSize: "12px", color: palette.teal, fontWeight: 600 }}>{artist.country}</span>
-            <span style={{ fontSize: "12px", color: palette.deepBlue, background: "#ecfff2", padding: "4px 10px", borderRadius: "999px" }}>{artist.genre}</span>
+            <span style={{ fontSize: "12px", color: palette.teal, fontWeight: 700 }}>{artist.country}</span>
+            <span style={{ fontSize: "12px", color: palette.ink, background: palette.butter, padding: "6px 12px", borderRadius: "999px", border: `1px solid ${palette.border}` }}>{artist.genre}</span>
           </div>
 
-          <h2 style={{ textAlign: "center", margin: "0 0 20px", fontSize: "clamp(24px, 5vw, 36px)", lineHeight: 1.2 }}>{artist.name}</h2>
+          <h2 style={{ textAlign: "center", margin: "0 0 6px", fontSize: "clamp(24px, 5vw, 38px)", lineHeight: 1.2 }}>{artist.name}</h2>
+          <p style={{ textAlign: "center", margin: "0 0 24px", color: "#476d72" }}>
+            Featured piece: <strong>{pieceTitle}</strong>
+          </p>
 
-          <div style={{ borderRadius: "12px", overflow: "hidden", border: `1px solid ${palette.lightMint}`, marginBottom: "20px", background: "#dfffe9" }}>
+          <div style={{ borderRadius: "22px", overflow: "hidden", border: `1px solid ${palette.border}`, marginBottom: "24px", background: "#dff7f3" }}>
             {hasValidYoutubeId ? (
-              <div style={{ position: "relative", paddingBottom: "56.25%" }}>
-                <iframe
-                  src={`https://www.youtube.com/embed/${artist.youtubeId}?rel=0&modestbranding=1`}
-                  title={`${artist.name} music`}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
+              playerLoaded ? (
+                <div style={{ position: "relative", paddingBottom: "56.25%" }}>
+                  <iframe
+                    src={buildEmbedUrl(artist.youtubeId)}
+                    title={`${artist.name} – ${pieceTitle}`}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPlayerLoaded(true)}
+                  aria-label={`Play ${pieceTitle} in the embedded YouTube player`}
+                  style={{
+                    width: "100%",
+                    minHeight: "320px",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "36px 24px",
+                    color: "#ffffff",
+                    backgroundImage: `linear-gradient(180deg, rgba(24, 59, 77, 0.18), rgba(24, 59, 77, 0.76)), url(${thumbnailUrl})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    display: "grid",
+                    placeItems: "center",
+                    textAlign: "center",
+                  }}
+                >
+                  <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "12px", maxWidth: "480px" }}>
+                    <span style={{ width: "74px", height: "74px", borderRadius: "999px", background: "rgba(255,255,255,0.92)", color: palette.ink, display: "grid", placeItems: "center", fontSize: "30px", boxShadow: "0 10px 26px rgba(0,0,0,0.18)" }}>
+                      ▶
+                    </span>
+                    <span style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 700 }}>
+                      Play the featured recording
+                    </span>
+                    <span style={{ fontSize: "15px", lineHeight: 1.6, color: "rgba(255,255,255,0.92)" }}>
+                      Click to load the embedded YouTube player for <strong>{pieceTitle}</strong>.
+                    </span>
+                  </span>
+                </button>
+              )
             ) : (
               <div style={{ padding: "32px 20px", textAlign: "center" }}>
-                <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Video preview unavailable</p>
-                <p style={{ margin: 0, color: palette.teal }}>Open YouTube search for this artist instead.</p>
+                <p style={{ margin: "0 0 8px", fontWeight: 700 }}>Embedded player unavailable</p>
+                <p style={{ margin: 0, color: palette.teal }}>Use the YouTube links below to hear the featured piece.</p>
               </div>
             )}
           </div>
 
-          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
             <a
-              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`}
+              href={watchUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -270,8 +387,27 @@ export default function App() {
                 color: "#ffffff",
                 background: palette.teal,
                 borderRadius: "999px",
-                padding: "10px 18px",
-                fontWeight: 600,
+                padding: "12px 18px",
+                fontWeight: 700,
+                fontSize: "14px",
+                boxShadow: "0 12px 24px rgba(43, 122, 120, 0.18)",
+              }}
+            >
+              Watch this recording on YouTube
+            </a>
+            <a
+              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(artist.youtubeSearch)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-block",
+                textDecoration: "none",
+                color: palette.ink,
+                background: palette.butter,
+                border: `1px solid ${palette.border}`,
+                borderRadius: "999px",
+                padding: "12px 18px",
+                fontWeight: 700,
                 fontSize: "14px",
               }}
             >
@@ -279,16 +415,33 @@ export default function App() {
             </a>
           </div>
 
-          <section>
-            {loadingStory ? (
-              <p style={{ margin: 0, textAlign: "center", color: palette.teal }}>Generating story…</p>
-            ) : (
-              story.split("\n\n").filter(Boolean).map((paragraph, index) => (
-                <p key={index} style={{ margin: "0 0 14px", lineHeight: 1.7, color: index === 0 ? palette.deepBlue : "#356a70" }}>
-                  {paragraph}
-                </p>
-              ))
-            )}
+          <p style={{ margin: "0 0 24px", textAlign: "center", color: "#5c7a80", fontSize: "13px" }}>
+            If the embedded player is blocked by your browser or by YouTube, use the direct watch button above.
+          </p>
+
+          <section style={{ display: "grid", gap: "18px", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+            <article style={{ background: "#fff9e8", border: `1px solid ${palette.border}`, borderRadius: "22px", padding: "20px" }}>
+              <p style={{ margin: "0 0 8px", fontSize: "12px", letterSpacing: "0.08em", textTransform: "uppercase", color: palette.teal, fontWeight: 700 }}>
+                About the piece
+              </p>
+              <h3 style={{ margin: "0 0 10px", fontSize: "22px", lineHeight: 1.3 }}>{pieceTitle}</h3>
+              {loadingDetails ? (
+                <p style={{ margin: 0, color: palette.teal, lineHeight: 1.7 }}>Writing a quick listening note…</p>
+              ) : (
+                <p style={{ margin: 0, color: "#476d72", lineHeight: 1.7 }}>{details.pieceNote}</p>
+              )}
+            </article>
+
+            <article style={{ background: "#f8fffe", border: `1px solid ${palette.border}`, borderRadius: "22px", padding: "20px" }}>
+              <p style={{ margin: "0 0 8px", fontSize: "12px", letterSpacing: "0.08em", textTransform: "uppercase", color: palette.teal, fontWeight: 700 }}>
+                100-word artist bio
+              </p>
+              {loadingDetails ? (
+                <p style={{ margin: 0, color: palette.teal, lineHeight: 1.7 }}>Writing the bio…</p>
+              ) : (
+                <p style={{ margin: 0, color: "#38575f", lineHeight: 1.8 }}>{details.bio}</p>
+              )}
+            </article>
           </section>
         </section>
 
@@ -298,7 +451,7 @@ export default function App() {
             {expanding && <span> · discovering more…</span>}
           </p>
           {newlyAdded > 0 && (
-            <p style={{ margin: "8px 0 0", fontSize: "12px", color: palette.mint }}>
+            <p style={{ margin: "8px 0 0", fontSize: "12px", color: palette.teal }}>
               +{newlyAdded} new artists added to your local rotation
             </p>
           )}

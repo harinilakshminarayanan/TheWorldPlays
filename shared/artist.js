@@ -18,8 +18,14 @@ export function normalizeArtist(input) {
   const youtubeSearch = typeof input.youtubeSearch === "string" && input.youtubeSearch.trim()
     ? input.youtubeSearch.trim()
     : `${name} ${country} ${genre}`;
+  const pieceTitle = typeof input.pieceTitle === "string" && input.pieceTitle.trim()
+    ? input.pieceTitle.trim()
+    : "";
+  const pieceDescription = typeof input.pieceDescription === "string" && input.pieceDescription.trim()
+    ? input.pieceDescription.trim()
+    : "";
 
-  return { name, country, genre, flag, youtubeId, youtubeSearch };
+  return { name, country, genre, flag, youtubeId, youtubeSearch, pieceTitle, pieceDescription };
 }
 
 export function dedupeArtists(artists) {
