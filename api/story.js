@@ -52,7 +52,7 @@ export default async function handler(req) {
 Artist: ${safeArtist.name}
 Country/region: ${safeArtist.country}
 Style: ${safeArtist.genre}
-Featured recording label: ${safeArtist.pieceTitle || safeArtist.youtubeSearch || "Unknown"}
+Featured recording title: ${safeArtist.pieceTitle || safeArtist.youtubeSearch || "Unknown"}
 
 Respond ONLY with valid JSON in this exact shape:
 {

@@ -153,7 +153,7 @@ function buildWatchUrl(youtubeId) {
 }
 
 function buildEmbedUrl(youtubeId) {
-  return `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
+  return `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
 }
 
 async function fetchArtistDetails(artist) {
