@@ -4,6 +4,36 @@ export function isValidYoutubeId(youtubeId) {
   return typeof youtubeId === "string" && YOUTUBE_ID_REGEX.test(youtubeId.trim());
 }
 
+function extractYoutubeId(value) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (isValidYoutubeId(trimmed)) return trimmed;
+
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.replace(/^www\./, "");
+
+    if (host === "youtu.be") {
+      const candidate = url.pathname.split("/").filter(Boolean)[0] || "";
+      return isValidYoutubeId(candidate) ? candidate : "";
+    }
+
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const byQuery = url.searchParams.get("v") || "";
+      if (isValidYoutubeId(byQuery)) return byQuery;
+
+      const parts = url.pathname.split("/").filter(Boolean);
+      const byPath = parts[0] === "embed" || parts[0] === "shorts" ? (parts[1] || "") : "";
+      return isValidYoutubeId(byPath) ? byPath : "";
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
 export function normalizeArtist(input) {
   if (!input || typeof input !== "object") return null;
 
@@ -12,8 +42,8 @@ export function normalizeArtist(input) {
   const genre = typeof input.genre === "string" ? input.genre.trim() : "";
   if (!name || !country || !genre) return null;
 
-  const youtubeIdRaw = typeof input.youtubeId === "string" ? input.youtubeId.trim() : "";
-  const youtubeId = isValidYoutubeId(youtubeIdRaw) ? youtubeIdRaw : "";
+  const youtubeId = extractYoutubeId(input.youtubeId) || extractYoutubeId(input.youtubeUrl);
+  if (!youtubeId) return null;
   const flag = typeof input.flag === "string" && input.flag.trim() ? input.flag.trim() : "🌍";
   const youtubeSearch = typeof input.youtubeSearch === "string" && input.youtubeSearch.trim()
     ? input.youtubeSearch.trim()
