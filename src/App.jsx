@@ -87,11 +87,7 @@ function getAllArtists() {
 
 function getDailyArtist(artists) {
   const safeArtists = Array.isArray(artists) && artists.length > 0 ? artists : SEED_ARTISTS;
-  const playableArtists = safeArtists.filter((artist) => isValidSpotifyId(artist?.spotifyId));
-  const candidates = playableArtists.length > 0
-    ? playableArtists
-    : SEED_ARTISTS.filter((artist) => isValidSpotifyId(artist?.spotifyId));
-
+  const candidates = safeArtists.length > 0 ? safeArtists : SEED_ARTISTS;
   if (candidates.length === 0) return SEED_ARTISTS[0];
   const now = new Date();
   const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
